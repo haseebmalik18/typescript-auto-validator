@@ -1,0 +1,19 @@
+{
+  "name": "basic-example",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "validate-example": "node dist/main.js"
+  },
+  "dependencies": {
+    "typescript-runtime-validator": "file:../.."
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vite": "^4.4.0"
+  }
+}
