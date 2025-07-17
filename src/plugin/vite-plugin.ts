@@ -1,7 +1,9 @@
-import type { Plugin, ResolvedConfig, HmrContext } from "vite";
-import { resolve, dirname, extname, basename } from "path";
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
-import { InterfaceExtractor, CodeGenerator } from "../transformer/index.js";
+import { Plugin } from "vite";
+import { resolve, dirname, basename, isAbsolute } from "path";
+import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { InterfaceExtractor } from "../transformer/interface-extractor.js";
+import { ValidatorGenerator } from "../generator/validator-generator.js";
+import { InterfaceInfo } from "../types.js";
 
 export interface ValidatorPluginOptions {
   include?: string[];
@@ -9,10 +11,8 @@ export interface ValidatorPluginOptions {
   outputDir?: string;
   generateTypeGuards?: boolean;
   watchMode?: boolean;
-}
-
-function isAbsolutePath(path: string): boolean {
-  return path.startsWith('/') || /^[a-zA-Z]:/.test(path);
+  enableLogging?: boolean;
+  generateMagicValidators?: boolean;
 }
 
 export default function typescriptValidator(
@@ -24,12 +24,14 @@ export default function typescriptValidator(
     outputDir = "src/generated",
     generateTypeGuards = true,
     watchMode = true,
+    enableLogging = true,
+    generateMagicValidators = true,
   } = options;
 
   const extractor = new InterfaceExtractor();
-  const generator = new CodeGenerator();
+  const generator = new ValidatorGenerator();
   const processedFiles = new Set<string>();
-  const generatedValidators = new Map<string, string>();
+  const allInterfaces = new Map<string, InterfaceInfo>();
   let resolvedOutputDir = outputDir;
   let configRoot = process.cwd();
 
@@ -54,7 +56,7 @@ export default function typescriptValidator(
   }
 
   function normalizeFilePath(filePath: string): string {
-    if (isAbsolutePath(filePath)) {
+    if (isAbsolute(filePath)) {
       return filePath;
     }
     
@@ -65,194 +67,130 @@ export default function typescriptValidator(
     return resolve(configRoot, filePath);
   }
 
-  function generateValidatorsForFile(filePath: string): string | null {
+  function generateValidatorsForFile(filePath: string): InterfaceInfo[] | null {
     try {
       const normalizedPath = normalizeFilePath(filePath);
-      
-      if (!existsSync(normalizedPath)) {
-        throw new Error(`File not found: ${normalizedPath}`);
-      }
-
       const interfaces = extractor.extractFromFile(normalizedPath);
-
-      if (interfaces.length === 0) {
-        return null;
+      
+      if (enableLogging !== false && interfaces.length > 0) {
+        console.log(`📝 Found ${interfaces.length} interface(s) in ${basename(filePath)}: ${interfaces.map(i => i.name).join(', ')}`);
       }
 
-      const validatorCode = generator.generateValidatorBundle(interfaces);
-
-      const moduleCode = `
-// Auto-generated validators for ${filePath}
-// DO NOT EDIT - This file is generated automatically
-
-import { ValidationError } from 'typescript-runtime-validator';
-
-${validatorCode}
-
-// Export all validators
-export {
-${interfaces.map((iface) => `  validate${iface.name},`).join("\n")}
-${generateTypeGuards ? interfaces.map((iface) => `  is${iface.name},`).join("\n") : ""}
-};
-
-// Export interface info for runtime use
-export const interfaceInfo = {
-${interfaces.map((iface) => `  ${iface.name}: ${JSON.stringify(iface, null, 2)},`).join("\n")}
-};
-`.trim();
-
-      return moduleCode;
+      return interfaces;
     } catch (error) {
-      console.warn(`Failed to generate validators for ${filePath}:`, error);
+      if (enableLogging !== false) {
+        console.warn(`Failed to generate validators for ${filePath}:`, error);
+      }
       return null;
     }
   }
 
-  function writeValidatorFile(
-    sourceFile: string,
-    validatorCode: string,
-  ): string {
-    const sourceBasename = basename(sourceFile, extname(sourceFile));
-    const validatorFilename = `${sourceBasename}.validators.ts`;
-    const validatorPath = resolve(resolvedOutputDir, validatorFilename);
+  function generateMagicValidatorModule(): void {
+    if (!generateMagicValidators) return;
 
-    const outputDirPath = dirname(validatorPath);
-    if (!existsSync(outputDirPath)) {
-      mkdirSync(outputDirPath, { recursive: true });
+    const allInterfaceList = Array.from(allInterfaces.values());
+    if (allInterfaceList.length === 0) {
+      return;
     }
 
-    writeFileSync(validatorPath, validatorCode, "utf-8");
-    return validatorPath;
-  }
+    try {
+      if (!existsSync(resolvedOutputDir)) {
+        mkdirSync(resolvedOutputDir, { recursive: true });
+      }
 
-  function generateIndexFile(): void {
-    const indexPath = resolve(resolvedOutputDir, "index.ts");
-
-    const exports = Array.from(generatedValidators.keys())
-      .map((sourceFile) => {
-        const sourceBasename = basename(sourceFile, extname(sourceFile));
-        return `export * from './${sourceBasename}.validators.js';`;
-      })
-      .join("\n");
-
-    const indexContent = `
-// Auto-generated validator index
-// DO NOT EDIT - This file is generated automatically
-
-${exports}
-`.trim();
-
-    writeFileSync(indexPath, indexContent, "utf-8");
+      const moduleCode = generator.generateValidatorModule(allInterfaceList);
+      const outputPath = resolve(resolvedOutputDir, "magic-validators.ts");
+      
+      writeFileSync(outputPath, moduleCode);
+      
+      if (enableLogging !== false) {
+        console.log(`🎯 Generated magic validators for ${allInterfaceList.length} interfaces`);
+      }
+    } catch (error) {
+      console.error("Failed to generate magic validator module:", error);
+    }
   }
 
   return {
     name: "typescript-validator",
-
-    configResolved(config: ResolvedConfig) {
+    configResolved(config) {
       configRoot = config.root;
-      if (!isAbsolutePath(outputDir)) {
-        resolvedOutputDir = resolve(config.root, outputDir);
-      } else {
-        resolvedOutputDir = outputDir;
-      }
-      console.log("🔍 TypeScript Validator: Scanning for interfaces...");
+      resolvedOutputDir = resolve(configRoot, outputDir);
     },
 
     buildStart() {
+      if (enableLogging !== false) {
+        console.log("🚀 TypeScript Runtime Validator starting...");
+      }
+      
+      allInterfaces.clear();
       processedFiles.clear();
-      generatedValidators.clear();
     },
 
-    transform(code: string, id: string) {
-      if (!id.endsWith(".ts") && !id.endsWith(".tsx")) {
+    load(id) {
+      if (generateMagicValidators && id.includes('src/index')) {
         return null;
       }
+      return null;
+    },
 
+    transform(code, id) {
       if (!shouldProcessFile(id)) {
         return null;
       }
 
-      if (processedFiles.has(id)) {
-        return null;
-      }
-
-      processedFiles.add(id);
-
       try {
-        const interfaces = extractor.extractFromSource(code, id);
-
-        if (interfaces.length === 0) {
-          return null;
-        }
-
-        console.log(
-          `✅ Found ${interfaces.length} interface(s) in ${basename(id)}: ${interfaces.map((i) => i.name).join(", ")}`,
-        );
-
-        const validatorCode = generator.generateValidatorBundle(interfaces);
-
-        const moduleCode = `
-// Auto-generated validators for ${id}
-// DO NOT EDIT - This file is generated automatically
-
-import { ValidationError } from 'typescript-runtime-validator';
-
-${validatorCode}
-
-// Export all validators
-export {
-${interfaces.map((iface) => `  validate${iface.name},`).join("\n")}
-${generateTypeGuards ? interfaces.map((iface) => `  is${iface.name},`).join("\n") : ""}
-};
-
-// Export interface info for runtime use
-export const interfaceInfo = {
-${interfaces.map((iface) => `  ${iface.name}: ${JSON.stringify(iface, null, 2)},`).join("\n")}
-};
-`.trim();
-
-        if (moduleCode) {
-          generatedValidators.set(id, moduleCode);
-          const validatorPath = writeValidatorFile(id, moduleCode);
-          console.log(`📝 Generated validators: ${basename(validatorPath)}`);
+        const interfaces = generateValidatorsForFile(id);
+        if (interfaces && interfaces.length > 0) {
+          interfaces.forEach(iface => {
+            allInterfaces.set(iface.name, iface);
+          });
+          processedFiles.add(id);
         }
 
         return null;
       } catch (error) {
-        console.warn(`⚠️  Failed to process ${basename(id)}:`, error);
+        if (enableLogging !== false) {
+          console.warn(`Failed to process ${id}:`, error);
+        }
         return null;
       }
     },
 
     generateBundle() {
-      if (generatedValidators.size > 0) {
-        generateIndexFile();
-        console.log(
-          `🎯 Generated ${generatedValidators.size} validator files in ${basename(resolvedOutputDir)}`,
-        );
+      generateMagicValidatorModule();
+
+      if (enableLogging !== false) {
+        console.log(`✅ TypeScript Runtime Validator generation complete!`);
       }
     },
 
-    handleHotUpdate(ctx: HmrContext) {
+    handleHotUpdate(ctx) {
       if (!watchMode) return;
 
       const { file } = ctx;
-
-      if (!file.endsWith(".ts") && !file.endsWith(".tsx")) {
-        return;
-      }
-
+      
       if (!shouldProcessFile(file)) {
         return;
       }
 
-      console.log(`🔄 Regenerating validators for ${basename(file)}...`);
+      try {
+        const interfaces = generateValidatorsForFile(file);
+        if (interfaces && interfaces.length > 0) {
+          interfaces.forEach(iface => {
+            allInterfaces.set(iface.name, iface);
+          });
 
-      const validatorCode = generateValidatorsForFile(file);
-      if (validatorCode) {
-        generatedValidators.set(file, validatorCode);
-        writeValidatorFile(file, validatorCode);
-        generateIndexFile();
+          generateMagicValidatorModule();
+          
+          if (enableLogging !== false) {
+            console.log(`🔥 Hot-reloaded validators for ${interfaces.map(i => i.name).join(', ')}`);
+          }
+        }
+      } catch (error) {
+        if (enableLogging !== false) {
+          console.warn(`Failed to hot-reload validators for ${file}:`, error);
+        }
       }
     },
   };

@@ -1,22 +1,30 @@
 export {
-  InterfaceExtractor,
-  TypeAnalyzer,
-  CodeGenerator,
-} from "./transformer/index.js";
+  validate,
+  validateAs,
+  isValid,
+  tryValidate,
+  createValidator,
+  validateBatch,
+  getAvailableValidators,
+  hasValidator,
+} from "./validator/magic-validator.js";
+
+export * from "./validator/index.js";
+
+export * from "./types.js";
+
+export * from "./performance/index.js";
+
+export * from "./integrations/index.js";
+
+export * from "./transformer/index.js";
+
+export * from "./plugin/index.js";
+
 export {
+  validateLegacy as validateWithInterface,
+  createValidatorLegacy as createValidatorWithInterface,
+  validateWithTransform,
   ValidationError,
   ValidatorFactory,
-  validate,
-  createValidator,
-  validateType,
-  getValidatorFactory,
 } from "./validator/index.js";
-export { ValidatorCache } from "./runtime/index.js";
-export type {
-  TypeInfo,
-  PropertyInfo,
-  InterfaceInfo,
-  ValidationResult,
-  ValidatorConfig,
-} from "./types.js";
-export type { ValidatorFunction } from "./validator/validator-factory.js";

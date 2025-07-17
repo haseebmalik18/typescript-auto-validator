@@ -1,9 +1,5 @@
 import { describe, it, expect, beforeEach } from "@jest/globals";
-import {
-  InterfaceExtractor,
-  TypeAnalyzer,
-  CodeGenerator,
-} from "../../src/transformer/index";
+import { InterfaceExtractor, TypeAnalyzer } from "../../src/transformer/index.js";
 
 describe("InterfaceExtractor", () => {
   let extractor: InterfaceExtractor;
@@ -213,87 +209,6 @@ describe("TypeAnalyzer", () => {
         nullable: false,
       };
       expect(analyzer.getValidationComplexity(unionType)).toBe(3);
-    });
-  });
-});
-
-describe("CodeGenerator", () => {
-  let generator: CodeGenerator;
-
-  beforeEach(() => {
-    generator = new CodeGenerator();
-  });
-
-  describe("generateValidator", () => {
-    it("should generate validator for simple interface", () => {
-      const interfaceInfo = {
-        name: "User",
-        properties: [
-          {
-            name: "id",
-            type: { kind: "number" as const, nullable: false },
-            optional: false,
-            readonly: false,
-          },
-          {
-            name: "name",
-            type: { kind: "string" as const, nullable: false },
-            optional: false,
-            readonly: false,
-          },
-        ],
-        filePath: "",
-        exported: true,
-      };
-
-      const validator = generator.generateValidator(interfaceInfo);
-
-      expect(validator).toContain("function validateUser");
-      expect(validator).toContain("typeof value !== 'object'");
-      expect(validator).toContain("typeof obj.id !== 'number'");
-      expect(validator).toContain("typeof obj.name !== 'string'");
-    });
-
-    it("should generate validator for array types", () => {
-      const interfaceInfo = {
-        name: "ProductList",
-        properties: [
-          {
-            name: "items",
-            type: {
-              kind: "array" as const,
-              elementType: { kind: "string" as const, nullable: false },
-              nullable: false,
-            },
-            optional: false,
-            readonly: false,
-          },
-        ],
-        filePath: "",
-        exported: true,
-      };
-
-      const validator = generator.generateValidator(interfaceInfo);
-
-      expect(validator).toContain("Array.isArray");
-      expect(validator).toContain("forEach");
-    });
-
-    it("should generate type guard function", () => {
-      const interfaceInfo = {
-        name: "User",
-        properties: [],
-        filePath: "",
-        exported: true,
-      };
-
-      const typeGuard = generator.generateTypeGuard(interfaceInfo);
-
-      expect(typeGuard).toContain("function isUser");
-      expect(typeGuard).toContain("value is User");
-      expect(typeGuard).toContain("validateUser(value)");
-      expect(typeGuard).toContain("return true");
-      expect(typeGuard).toContain("return false");
     });
   });
 });
