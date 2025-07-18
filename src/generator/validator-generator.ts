@@ -27,6 +27,43 @@ function ${functionName}(data: unknown, config?: ValidatorConfig): ${name} {
   }
 
   /**
+   * Backward compatibility method - alias for generateValidatorFunction
+   */
+  generateValidator(interfaceInfo: InterfaceInfo): string {
+    return this.generateValidatorFunction(interfaceInfo);
+  }
+
+  /**
+   * Generate a TypeScript type guard function
+   */
+  generateTypeGuard(interfaceInfo: InterfaceInfo): string {
+    const { name, properties } = interfaceInfo;
+    const functionName = `is${name}`;
+    
+    const validationCode = this.generateValidationLogic(properties, 'data', 'data');
+    
+    return `
+/**
+ * Generated type guard for ${name} interface
+ */
+function ${functionName}(data: unknown): data is ${name} {
+  try {
+    ${validationCode}
+    return true;
+  } catch {
+    return false;
+  }
+}`.trim();
+  }
+
+  /**
+   * Backward compatibility method - alias for generateValidatorModule
+   */
+  generateValidatorBundle(interfaces: InterfaceInfo[]): string {
+    return this.generateValidatorModule(interfaces);
+  }
+
+  /**
    * Generate validation logic for a set of properties
    */
   private generateValidationLogic(

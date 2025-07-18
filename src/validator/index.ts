@@ -63,6 +63,7 @@ export { TransformationError } from "../types.js";
 
 // Legacy API for backwards compatibility - use different names to avoid conflicts
 import { ValidatorFactory } from "./validator-factory.js";
+import { TypeInfo, ValidatorConfig } from "../types.js";
 
 const globalValidatorFactory = new ValidatorFactory();
 
@@ -95,6 +96,20 @@ export function validateWithTransform<T>(data: unknown, interfaceInfo: any, conf
   const transformingConfig = { autoTransform: true, ...config };
   const validator = globalValidatorFactory.createValidator<T>(interfaceInfo, transformingConfig);
   return validator(data);
+}
+
+/**
+ * Validate a value against a TypeScript type definition
+ * This is the missing validateType function that the tests are looking for
+ */
+export function validateType<T>(
+  value: unknown, 
+  typeInfo: TypeInfo, 
+  path: string = "value", 
+  config?: ValidatorConfig
+): T {
+  const validator = globalValidatorFactory.createTypeValidator<T>(typeInfo, config);
+  return validator(value, path, config);
 }
 
 /**
