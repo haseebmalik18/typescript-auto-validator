@@ -10,6 +10,481 @@ import {
 } from "../types.js";
 
 /**
+ * Safe expression evaluator that only allows whitelisted operations
+ */
+class SafeExpressionEvaluator {
+  private static readonly ALLOWED_OPERATORS = [
+    ">",
+    "<",
+    ">=",
+    "<=",
+    "===",
+    "!==",
+    "==",
+    "!=",
+    "&&",
+    "||",
+    "!",
+    "+",
+    "-",
+    "*",
+    "/",
+    "%",
+  ];
+
+  private static readonly ALLOWED_PROPERTIES = [
+    "length",
+    "value",
+    "type",
+    "kind",
+    "name",
+    "id",
+    "status",
+    "active",
+    "enabled",
+  ];
+
+  private static readonly ALLOWED_METHODS = [
+    "includes",
+    "startsWith",
+    "endsWith",
+    "toLowerCase",
+    "toUpperCase",
+    "trim",
+  ];
+
+  /**
+   * Safely evaluate simple expressions with whitelisted operations only
+   */
+  static evaluate(expression: string, value: unknown, context?: any): boolean {
+    try {
+      // Remove all whitespace for easier parsing
+      const cleanExpr = expression.replace(/\s+/g, " ").trim();
+
+      // Check for dangerous patterns
+      if (this.containsDangerousPatterns(cleanExpr)) {
+        console.warn(`Blocked potentially dangerous expression: ${expression}`);
+        return false;
+      }
+
+      // Parse and evaluate safe expressions
+      return this.evaluateSafeExpression(cleanExpr, value, context);
+    } catch (error) {
+      console.warn(`Failed to evaluate expression "${expression}":`, error);
+      return false;
+    }
+  }
+
+  private static containsDangerousPatterns(expression: string): boolean {
+    const dangerousPatterns = [
+      /require\s*\(/,
+      /import\s*\(/,
+      /eval\s*\(/,
+      /Function\s*\(/,
+      /constructor/,
+      /prototype/,
+      /__proto__/,
+      /process\./,
+      /global\./,
+      /window\./,
+      /document\./,
+      /console\./,
+      /setTimeout/,
+      /setInterval/,
+      /fetch\s*\(/,
+      /XMLHttpRequest/,
+      /\.call\s*\(/,
+      /\.apply\s*\(/,
+      /\.bind\s*\(/,
+      /delete\s+/,
+      /new\s+/,
+      /throw\s+/,
+      /try\s*{/,
+      /catch\s*\(/,
+      /while\s*\(/,
+      /for\s*\(/,
+      /function\s*\(/,
+      /=>/,
+      /\.\./,
+      /\[.*\]/,
+    ];
+
+    return dangerousPatterns.some((pattern) => pattern.test(expression));
+  }
+
+  private static evaluateSafeExpression(
+    expression: string,
+    value: unknown,
+    context?: any,
+  ): boolean {
+    // Handle simple type checks
+    if (expression.startsWith("typeof ")) {
+      return this.evaluateTypeofExpression(expression, value);
+    }
+
+    // Handle simple property access and comparisons
+    if (expression.includes(".length")) {
+      return this.evaluateLengthExpression(expression, value);
+    }
+
+    // Handle simple value comparisons
+    if (this.isSimpleComparison(expression)) {
+      return this.evaluateSimpleComparison(expression, value);
+    }
+
+    // Handle method calls on value
+    if (expression.includes(".")) {
+      return this.evaluatePropertyAccess(expression, value);
+    }
+
+    // Default to false for any unrecognized patterns
+    console.warn(`Unrecognized expression pattern: ${expression}`);
+    return false;
+  }
+
+  private static evaluateTypeofExpression(
+    expression: string,
+    value: unknown,
+  ): boolean {
+    const match = expression.match(
+      /typeof\s+value\s*([><=!]+)\s*['"](\w+)['"]/,
+    );
+    if (!match) return false;
+
+    const [, operator, expectedType] = match;
+    const actualType = typeof value;
+
+    switch (operator) {
+      case "===":
+      case "==":
+        return actualType === expectedType;
+      case "!==":
+      case "!=":
+        return actualType !== expectedType;
+      default:
+        return false;
+    }
+  }
+
+  private static evaluateLengthExpression(
+    expression: string,
+    value: unknown,
+  ): boolean {
+    if (typeof value !== "string" && !Array.isArray(value)) return false;
+
+    const length = (value as string | unknown[]).length;
+    const match = expression.match(/value\.length\s*([><=!]+)\s*(\d+)/);
+    if (!match) return false;
+
+    const [, operator, threshold] = match;
+    const thresholdNum = parseInt(threshold, 10);
+
+    switch (operator) {
+      case ">":
+        return length > thresholdNum;
+      case "<":
+        return length < thresholdNum;
+      case ">=":
+        return length >= thresholdNum;
+      case "<=":
+        return length <= thresholdNum;
+      case "===":
+      case "==":
+        return length === thresholdNum;
+      case "!==":
+      case "!=":
+        return length !== thresholdNum;
+      default:
+        return false;
+    }
+  }
+
+  private static isSimpleComparison(expression: string): boolean {
+    return /^value\s*([><=!]+)\s*(.+)$/.test(expression);
+  }
+
+  private static evaluateSimpleComparison(
+    expression: string,
+    value: unknown,
+  ): boolean {
+    const match = expression.match(/^value\s*([><=!]+)\s*(.+)$/);
+    if (!match) return false;
+
+    const [, operator, rightSide] = match;
+    let rightValue: unknown;
+
+    // Parse right side value
+    if (rightSide.startsWith('"') && rightSide.endsWith('"')) {
+      rightValue = rightSide.slice(1, -1);
+    } else if (rightSide.startsWith("'") && rightSide.endsWith("'")) {
+      rightValue = rightSide.slice(1, -1);
+    } else if (!isNaN(Number(rightSide))) {
+      rightValue = Number(rightSide);
+    } else if (rightSide === "true") {
+      rightValue = true;
+    } else if (rightSide === "false") {
+      rightValue = false;
+    } else if (rightSide === "null") {
+      rightValue = null;
+    } else {
+      return false; // Unsupported right side
+    }
+
+    switch (operator) {
+      case ">":
+        return Number(value) > Number(rightValue);
+      case "<":
+        return Number(value) < Number(rightValue);
+      case ">=":
+        return Number(value) >= Number(rightValue);
+      case "<=":
+        return Number(value) <= Number(rightValue);
+      case "===":
+      case "==":
+        return value === rightValue;
+      case "!==":
+      case "!=":
+        return value !== rightValue;
+      default:
+        return false;
+    }
+  }
+
+  private static evaluatePropertyAccess(
+    expression: string,
+    value: unknown,
+  ): boolean {
+    // Only allow safe property access on strings
+    if (typeof value !== "string") return false;
+
+    // Handle string method calls
+    const methodMatch = expression.match(
+      /^value\.(\w+)\(\)\s*([><=!]+)\s*(.+)$/,
+    );
+    if (methodMatch) {
+      const [, method, operator, rightSide] = methodMatch;
+
+      if (!this.ALLOWED_METHODS.includes(method)) return false;
+
+      let result: unknown;
+      try {
+        switch (method) {
+          case "toLowerCase":
+            result = value.toLowerCase();
+            break;
+          case "toUpperCase":
+            result = value.toUpperCase();
+            break;
+          case "trim":
+            result = value.trim();
+            break;
+          default:
+            return false;
+        }
+
+        return this.evaluateSimpleComparison(
+          `value ${operator} ${rightSide}`,
+          result,
+        );
+      } catch {
+        return false;
+      }
+    }
+
+    // Handle string method calls with parameters
+    const methodWithParamMatch = expression.match(
+      /^value\.(\w+)\(['"]([^'"]*)['"]\)$/,
+    );
+    if (methodWithParamMatch) {
+      const [, method, param] = methodWithParamMatch;
+
+      if (!this.ALLOWED_METHODS.includes(method)) return false;
+
+      try {
+        switch (method) {
+          case "includes":
+            return value.includes(param);
+          case "startsWith":
+            return value.startsWith(param);
+          case "endsWith":
+            return value.endsWith(param);
+          default:
+            return false;
+        }
+      } catch {
+        return false;
+      }
+    }
+
+    return false;
+  }
+}
+
+/**
+ * Predefined safe transformation functions to replace custom functions
+ */
+class SafeTransformationFunctions {
+  private static functions = new Map<
+    string,
+    (value: unknown, params?: Record<string, unknown>) => unknown
+  >([
+    [
+      "reverse",
+      (value) => {
+        if (typeof value === "string")
+          return value.split("").reverse().join("");
+        if (Array.isArray(value)) return [...value].reverse();
+        throw new Error("Reverse function only works with strings and arrays");
+      },
+    ],
+
+    [
+      "repeat",
+      (value, params) => {
+        if (typeof value !== "string")
+          throw new Error("Repeat function only works with strings");
+        const times = (params?.times as number) || 1;
+        if (times < 0 || times > 100)
+          throw new Error("Repeat times must be between 0 and 100");
+        return value.repeat(times);
+      },
+    ],
+
+    [
+      "truncate",
+      (value, params) => {
+        if (typeof value !== "string")
+          throw new Error("Truncate function only works with strings");
+        const maxLength = (params?.maxLength as number) || 100;
+        if (maxLength < 0 || maxLength > 10000)
+          throw new Error("Max length must be between 0 and 10000");
+        return value.length > maxLength
+          ? value.substring(0, maxLength) + "..."
+          : value;
+      },
+    ],
+
+    [
+      "capitalize",
+      (value) => {
+        if (typeof value !== "string")
+          throw new Error("Capitalize function only works with strings");
+        return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+      },
+    ],
+
+    [
+      "padStart",
+      (value, params) => {
+        if (typeof value !== "string")
+          throw new Error("PadStart function only works with strings");
+        const length = (params?.length as number) || 0;
+        const padString = (params?.padString as string) || " ";
+        if (length < 0 || length > 1000)
+          throw new Error("Pad length must be between 0 and 1000");
+        return value.padStart(length, padString);
+      },
+    ],
+
+    [
+      "padEnd",
+      (value, params) => {
+        if (typeof value !== "string")
+          throw new Error("PadEnd function only works with strings");
+        const length = (params?.length as number) || 0;
+        const padString = (params?.padString as string) || " ";
+        if (length < 0 || length > 1000)
+          throw new Error("Pad length must be between 0 and 1000");
+        return value.padEnd(length, padString);
+      },
+    ],
+
+    [
+      "slice",
+      (value, params) => {
+        if (typeof value !== "string" && !Array.isArray(value)) {
+          throw new Error("Slice function only works with strings and arrays");
+        }
+        const start = (params?.start as number) || 0;
+        const end = params?.end as number;
+        return value.slice(start, end);
+      },
+    ],
+
+    [
+      "replace",
+      (value, params) => {
+        if (typeof value !== "string")
+          throw new Error("Replace function only works with strings");
+        const search = params?.search as string;
+        const replacement = (params?.replacement as string) || "";
+        if (!search)
+          throw new Error("Search parameter is required for replace function");
+        // Only allow simple string replacement, no regex
+        return value.split(search).join(replacement);
+      },
+    ],
+
+    [
+      "abs",
+      (value) => {
+        if (typeof value !== "number")
+          throw new Error("Abs function only works with numbers");
+        return Math.abs(value);
+      },
+    ],
+
+    [
+      "round",
+      (value, params) => {
+        if (typeof value !== "number")
+          throw new Error("Round function only works with numbers");
+        const decimals = (params?.decimals as number) || 0;
+        if (decimals < 0 || decimals > 10)
+          throw new Error("Decimals must be between 0 and 10");
+        return (
+          Math.round(value * Math.pow(10, decimals)) / Math.pow(10, decimals)
+        );
+      },
+    ],
+
+    [
+      "clamp",
+      (value, params) => {
+        if (typeof value !== "number")
+          throw new Error("Clamp function only works with numbers");
+        const min = (params?.min as number) ?? -Infinity;
+        const max = (params?.max as number) ?? Infinity;
+        return Math.min(Math.max(value, min), max);
+      },
+    ],
+
+    [
+      "throwError",
+      (value) => {
+        throw new Error("Custom error");
+      },
+    ],
+  ]);
+
+  static get(
+    name: string,
+  ):
+    | ((value: unknown, params?: Record<string, unknown>) => unknown)
+    | undefined {
+    return this.functions.get(name);
+  }
+
+  static has(name: string): boolean {
+    return this.functions.has(name);
+  }
+
+  static getAvailableFunctions(): string[] {
+    return Array.from(this.functions.keys());
+  }
+}
+
+/**
  * Core transformation engine for automatic type coercion and custom transformations
  */
 export class TransformationEngine {
@@ -43,7 +518,10 @@ export class TransformationEngine {
     };
 
     // Check transformation depth to prevent infinite loops
-    const maxDepth = config.transformationStrategy?.maxDepth || this.defaultStrategy.maxDepth || 10;
+    const maxDepth =
+      config.transformationStrategy?.maxDepth ||
+      this.defaultStrategy.maxDepth ||
+      10;
     if (depth > maxDepth) {
       return {
         success: false,
@@ -97,8 +575,9 @@ export class TransformationEngine {
    */
   getTransformersForType(sourceType: string): TransformerDefinition[] {
     return Object.values(this.transformers).filter(
-      (transformer) => transformer.sourceTypes.includes(sourceType) || 
-                     transformer.sourceTypes.includes('*')
+      (transformer) =>
+        transformer.sourceTypes.includes(sourceType) ||
+        transformer.sourceTypes.includes("*"),
     );
   }
 
@@ -125,7 +604,11 @@ export class TransformationEngine {
     }
 
     // Apply automatic type coercion
-    const coercionResult = this.applyAutomaticCoercion(currentValue, typeInfo, context);
+    const coercionResult = this.applyAutomaticCoercion(
+      currentValue,
+      typeInfo,
+      context,
+    );
     if (coercionResult.success) {
       currentValue = coercionResult.value;
       appliedTransformations.push(...coercionResult.appliedTransformations);
@@ -203,7 +686,7 @@ export class TransformationEngine {
     // Find appropriate transformer
     const transformers = this.getTransformersForType(sourceType);
     const targetTransformer = transformers.find(
-      (t) => t.targetType === targetType
+      (t) => t.targetType === targetType,
     );
 
     if (!targetTransformer) {
@@ -221,7 +704,10 @@ export class TransformationEngine {
     }
 
     // Check if transformation is applicable
-    if (targetTransformer.canTransform && !targetTransformer.canTransform(value)) {
+    if (
+      targetTransformer.canTransform &&
+      !targetTransformer.canTransform(value)
+    ) {
       return {
         success: false,
         originalValue: value,
@@ -320,15 +806,19 @@ export class TransformationEngine {
 
     for (let i = 0; i < rules.length; i++) {
       const rule = rules[i];
-      
+
       // Check if rule condition is met
       if (!this.shouldApplyRule(currentValue, rule, context)) {
         continue;
       }
 
       try {
-        const ruleResult = this.applyTransformationRule(currentValue, rule, context);
-        
+        const ruleResult = this.applyTransformationRule(
+          currentValue,
+          rule,
+          context,
+        );
+
         if (ruleResult.success) {
           currentValue = ruleResult.value;
           appliedTransformations.push(...ruleResult.appliedTransformations);
@@ -346,15 +836,16 @@ export class TransformationEngine {
           // Continue with next rule if not failing fast
         }
       } catch (error) {
-        const transformationError = error instanceof TransformationError
-          ? error
-          : new TransformationError(
-              `Rule ${rule.type} failed: ${String(error)}`,
-              context.path,
-              currentValue,
-              rule.targetType,
-              `rule-${rule.type}-${i}`,
-            );
+        const transformationError =
+          error instanceof TransformationError
+            ? error
+            : new TransformationError(
+                `Rule ${rule.type} failed: ${String(error)}`,
+                context.path,
+                currentValue,
+                rule.targetType,
+                `rule-${rule.type}-${i}`,
+              );
 
         const options = context.typeInfo.transformations?.options;
         if (options?.failFast) {
@@ -393,17 +884,17 @@ export class TransformationEngine {
     // Check source type condition
     if (condition.sourceType) {
       const valueType = this.getValueType(value);
-      const sourceTypes = Array.isArray(condition.sourceType) 
-        ? condition.sourceType 
+      const sourceTypes = Array.isArray(condition.sourceType)
+        ? condition.sourceType
         : [condition.sourceType];
-      
-      if (!sourceTypes.includes(valueType) && !sourceTypes.includes('*')) {
+
+      if (!sourceTypes.includes(valueType) && !sourceTypes.includes("*")) {
         return false;
       }
     }
 
     // Check value pattern condition
-    if (condition.valuePattern && typeof value === 'string') {
+    if (condition.valuePattern && typeof value === "string") {
       try {
         const regex = new RegExp(condition.valuePattern);
         if (!regex.test(value)) {
@@ -411,19 +902,27 @@ export class TransformationEngine {
         }
       } catch (error) {
         // Invalid regex pattern, skip this condition
+        console.warn(
+          `Invalid regex pattern in transformation rule: ${condition.valuePattern}`,
+        );
         return false;
       }
     }
 
-    // Check custom condition
+    // Check custom condition using safe evaluator
     if (condition.customCondition) {
       try {
-        // Safely evaluate custom condition (in a real implementation, 
-        // you might want to use a proper expression evaluator)
-        const conditionFunction = new Function('value', 'context', `return ${condition.customCondition}`);
-        return Boolean(conditionFunction(value, context));
+        return SafeExpressionEvaluator.evaluate(
+          condition.customCondition,
+          value,
+          context,
+        );
       } catch (error) {
         // Invalid custom condition, fail safe
+        console.warn(
+          `Failed to evaluate custom condition: ${condition.customCondition}`,
+          error,
+        );
         return false;
       }
     }
@@ -442,21 +941,21 @@ export class TransformationEngine {
     const ruleName = `rule-${rule.type}`;
 
     switch (rule.type) {
-      case 'coerce':
+      case "coerce":
         return this.applyCoercionRule(value, rule, context, ruleName);
-      
-      case 'parse':
+
+      case "parse":
         return this.applyParseRule(value, rule, context, ruleName);
-      
-      case 'format':
+
+      case "format":
         return this.applyFormatRule(value, rule, context, ruleName);
-      
-      case 'sanitize':
+
+      case "sanitize":
         return this.applySanitizeRule(value, rule, context, ruleName);
-      
-      case 'custom':
-        return this.applyCustomRule(value, rule, context, ruleName);
-      
+
+      case "custom":
+        return this.applySafeCustomRule(value, rule, context, ruleName);
+
       default:
         return {
           success: false,
@@ -488,7 +987,7 @@ export class TransformationEngine {
         success: false,
         originalValue: value,
         error: new TransformationError(
-          'Coercion rule requires targetType',
+          "Coercion rule requires targetType",
           context.path,
           value,
           undefined,
@@ -502,26 +1001,26 @@ export class TransformationEngine {
       let coercedValue: unknown;
 
       switch (targetType) {
-        case 'string':
+        case "string":
           coercedValue = String(value);
           break;
-        
-        case 'number':
-          if (typeof value === 'string' && value.trim() === '') {
-            throw new Error('Empty string cannot be coerced to number');
+
+        case "number":
+          if (typeof value === "string" && value.trim() === "") {
+            throw new Error("Empty string cannot be coerced to number");
           }
           coercedValue = Number(value);
           if (isNaN(coercedValue as number)) {
             throw new Error(`Cannot coerce ${typeof value} to number`);
           }
           break;
-        
-        case 'boolean':
-          if (typeof value === 'string') {
+
+        case "boolean":
+          if (typeof value === "string") {
             const str = value.toLowerCase().trim();
-            if (['true', '1', 'yes', 'on'].includes(str)) {
+            if (["true", "1", "yes", "on"].includes(str)) {
               coercedValue = true;
-            } else if (['false', '0', 'no', 'off', ''].includes(str)) {
+            } else if (["false", "0", "no", "off", ""].includes(str)) {
               coercedValue = false;
             } else {
               throw new Error(`Cannot coerce "${value}" to boolean`);
@@ -530,9 +1029,9 @@ export class TransformationEngine {
             coercedValue = Boolean(value);
           }
           break;
-        
-        case 'date':
-          if (typeof value === 'string' || typeof value === 'number') {
+
+        case "date":
+          if (typeof value === "string" || typeof value === "number") {
             coercedValue = new Date(value);
             if (isNaN((coercedValue as Date).getTime())) {
               throw new Error(`Cannot coerce "${value}" to Date`);
@@ -541,25 +1040,25 @@ export class TransformationEngine {
             throw new Error(`Cannot coerce ${typeof value} to Date`);
           }
           break;
-        
-        case 'array':
+
+        case "array":
           if (Array.isArray(value)) {
             coercedValue = value;
-          } else if (typeof value === 'string') {
+          } else if (typeof value === "string") {
             try {
               coercedValue = JSON.parse(value);
               if (!Array.isArray(coercedValue)) {
-                throw new Error('Parsed value is not an array');
+                throw new Error("Parsed value is not an array");
               }
             } catch {
               // Try splitting by comma
-              coercedValue = value.split(',').map(item => item.trim());
+              coercedValue = value.split(",").map((item) => item.trim());
             }
           } else {
             coercedValue = [value];
           }
           break;
-        
+
         default:
           throw new Error(`Unsupported coercion target type: ${targetType}`);
       }
@@ -595,12 +1094,12 @@ export class TransformationEngine {
     context: TransformationContext,
     ruleName: string,
   ): TransformationResult {
-    if (typeof value !== 'string') {
+    if (typeof value !== "string") {
       return {
         success: false,
         originalValue: value,
         error: new TransformationError(
-          'Parse rule can only be applied to strings',
+          "Parse rule can only be applied to strings",
           context.path,
           value,
           rule.targetType,
@@ -615,57 +1114,64 @@ export class TransformationEngine {
       const params = rule.params || {};
 
       switch (rule.targetType) {
-        case 'json':
+        case "json":
           parsedValue = JSON.parse(value);
           break;
-        
-        case 'csv':
+
+        case "csv":
           // Simple CSV parsing
-          const delimiter = params.delimiter || ',';
+          const delimiter = params.delimiter || ",";
           const hasHeaders = params.hasHeaders || false;
-          const lines = value.split('\n').filter(line => line.trim());
-          
+          const lines = value.split("\n").filter((line) => line.trim());
+
           if (hasHeaders && lines.length > 0) {
-            const headers = lines[0].split(delimiter).map(h => h.trim());
-            parsedValue = lines.slice(1).map(line => {
-              const values = line.split(delimiter).map(v => v.trim());
-              return headers.reduce((obj, header, index) => {
-                obj[header] = values[index] || '';
-                return obj;
-              }, {} as Record<string, string>);
+            const headers = lines[0].split(delimiter).map((h) => h.trim());
+            parsedValue = lines.slice(1).map((line) => {
+              const values = line.split(delimiter).map((v) => v.trim());
+              return headers.reduce(
+                (obj, header, index) => {
+                  obj[header] = values[index] || "";
+                  return obj;
+                },
+                {} as Record<string, string>,
+              );
             });
           } else {
-            parsedValue = lines.map(line => line.split(delimiter).map(v => v.trim()));
+            parsedValue = lines.map((line) =>
+              line.split(delimiter).map((v) => v.trim()),
+            );
           }
           break;
-        
-        case 'url':
+
+        case "url":
           parsedValue = new URL(value);
           break;
-        
-        case 'email':
+
+        case "email":
           const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
           if (!emailRegex.test(value)) {
-            throw new Error('Invalid email format');
+            throw new Error("Invalid email format");
           }
-          const [localPart, domain] = value.split('@');
+          const [localPart, domain] = value.split("@");
           parsedValue = { localPart, domain, full: value };
           break;
-        
-        case 'phone':
+
+        case "phone":
           // Simple phone number parsing
           const phoneRegex = /^[\+]?[1-9][\d]{0,15}$/;
-          const cleanPhone = value.replace(/[\s\-\(\)]/g, '');
+          const cleanPhone = value.replace(/[\s\-\(\)]/g, "");
           if (!phoneRegex.test(cleanPhone)) {
-            throw new Error('Invalid phone number format');
+            throw new Error("Invalid phone number format");
           }
           parsedValue = {
             raw: value,
             cleaned: cleanPhone,
-            international: cleanPhone.startsWith('+') ? cleanPhone : `+${cleanPhone}`,
+            international: cleanPhone.startsWith("+")
+              ? cleanPhone
+              : `+${cleanPhone}`,
           };
           break;
-        
+
         default:
           throw new Error(`Unsupported parse target type: ${rule.targetType}`);
       }
@@ -706,74 +1212,83 @@ export class TransformationEngine {
       const params = rule.params || {};
 
       switch (rule.targetType) {
-        case 'currency':
+        case "currency":
           let currencyValue: number;
-          if (typeof value === 'number') {
+          if (typeof value === "number") {
             currencyValue = value;
-          } else if (typeof value === 'string' && !isNaN(Number(value))) {
+          } else if (typeof value === "string" && !isNaN(Number(value))) {
             currencyValue = Number(value);
           } else {
-            throw new Error('Currency formatting requires a number or numeric string');
+            throw new Error(
+              "Currency formatting requires a number or numeric string",
+            );
           }
-          const currency = params.currency || 'USD';
-          const locale = params.locale || 'en-US';
+          const currency = params.currency || "USD";
+          const locale = params.locale || "en-US";
           formattedValue = new Intl.NumberFormat(locale, {
-            style: 'currency',
+            style: "currency",
             currency,
           }).format(currencyValue);
           break;
-        
-        case 'percentage':
+
+        case "percentage":
           let percentageValue: number;
-          if (typeof value === 'number') {
+          if (typeof value === "number") {
             percentageValue = value;
-          } else if (typeof value === 'string' && !isNaN(Number(value))) {
+          } else if (typeof value === "string" && !isNaN(Number(value))) {
             percentageValue = Number(value);
           } else {
-            throw new Error('Percentage formatting requires a number or numeric string');
+            throw new Error(
+              "Percentage formatting requires a number or numeric string",
+            );
           }
           const decimals = params.decimals || 2;
           formattedValue = `${(percentageValue * 100).toFixed(decimals)}%`;
           break;
-        
-        case 'date-string':
+
+        case "date-string":
           if (!(value instanceof Date)) {
-            throw new Error('Date formatting requires a Date object');
+            throw new Error("Date formatting requires a Date object");
           }
-          const format = params.format || 'ISO';
+          const format = params.format || "ISO";
           switch (format) {
-            case 'ISO':
+            case "ISO":
               formattedValue = value.toISOString();
               break;
-            case 'locale':
+            case "locale":
               formattedValue = value.toLocaleDateString(params.locale);
               break;
-            case 'custom':
+            case "custom":
               // Simple custom formatting (YYYY-MM-DD)
               const year = value.getFullYear();
-              const month = String(value.getMonth() + 1).padStart(2, '0');
-              const day = String(value.getDate()).padStart(2, '0');
+              const month = String(value.getMonth() + 1).padStart(2, "0");
+              const day = String(value.getDate()).padStart(2, "0");
               formattedValue = `${year}-${month}-${day}`;
               break;
             default:
               formattedValue = value.toString();
           }
           break;
-        
-        case 'title-case':
-          if (typeof value !== 'string') {
-            throw new Error('Title case formatting requires a string');
+
+        case "title-case":
+          if (typeof value !== "string") {
+            throw new Error("Title case formatting requires a string");
           }
-          formattedValue = value.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+          formattedValue = value
+            .toLowerCase()
+            .replace(/\b\w/g, (l) => l.toUpperCase());
           break;
-        
-        case 'kebab-case':
-          if (typeof value !== 'string') {
-            throw new Error('Kebab case formatting requires a string');
+
+        case "kebab-case":
+          if (typeof value !== "string") {
+            throw new Error("Kebab case formatting requires a string");
           }
-          formattedValue = value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+          formattedValue = value
+            .toLowerCase()
+            .replace(/\s+/g, "-")
+            .replace(/[^a-z0-9\-]/g, "");
           break;
-        
+
         default:
           throw new Error(`Unsupported format target type: ${rule.targetType}`);
       }
@@ -809,12 +1324,12 @@ export class TransformationEngine {
     context: TransformationContext,
     ruleName: string,
   ): TransformationResult {
-    if (typeof value !== 'string') {
+    if (typeof value !== "string") {
       return {
         success: false,
         originalValue: value,
         error: new TransformationError(
-          'Sanitize rule can only be applied to strings',
+          "Sanitize rule can only be applied to strings",
           context.path,
           value,
           rule.targetType,
@@ -829,47 +1344,51 @@ export class TransformationEngine {
       const params = rule.params || {};
 
       switch (rule.targetType) {
-        case 'html':
+        case "html":
           // Basic HTML sanitization (remove script tags and dangerous attributes)
           sanitizedValue = value
-            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-            .replace(/on\w+="[^"]*"/gi, '')
-            .replace(/javascript:/gi, '');
+            .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+            .replace(/on\w+="[^"]*"/gi, "")
+            .replace(/javascript:/gi, "");
           break;
-        
-        case 'alphanumeric':
+
+        case "alphanumeric":
           const includeSpaces = params.includeSpaces || false;
           const pattern = includeSpaces ? /[^a-zA-Z0-9\s]/g : /[^a-zA-Z0-9]/g;
-          sanitizedValue = value.replace(pattern, '');
+          sanitizedValue = value.replace(pattern, "");
           break;
-        
-        case 'email':
+
+        case "email":
           // Remove invalid email characters
-          sanitizedValue = value.toLowerCase().replace(/[^a-zA-Z0-9@.\-_]/g, '');
+          sanitizedValue = value
+            .toLowerCase()
+            .replace(/[^a-zA-Z0-9@.\-_]/g, "");
           break;
-        
-        case 'phone':
+
+        case "phone":
           // Keep only numbers, +, -, (, ), and spaces
-          sanitizedValue = value.replace(/[^0-9\+\-\(\)\s]/g, '');
+          sanitizedValue = value.replace(/[^0-9\+\-\(\)\s]/g, "");
           break;
-        
-        case 'trim':
+
+        case "trim":
           sanitizedValue = value.trim();
           if (params.trimInternal) {
-            sanitizedValue = sanitizedValue.replace(/\s+/g, ' ');
+            sanitizedValue = sanitizedValue.replace(/\s+/g, " ");
           }
           break;
-        
-        case 'lowercase':
+
+        case "lowercase":
           sanitizedValue = value.toLowerCase();
           break;
-        
-        case 'uppercase':
+
+        case "uppercase":
           sanitizedValue = value.toUpperCase();
           break;
-        
+
         default:
-          throw new Error(`Unsupported sanitize target type: ${rule.targetType}`);
+          throw new Error(
+            `Unsupported sanitize target type: ${rule.targetType}`,
+          );
       }
 
       return {
@@ -895,21 +1414,56 @@ export class TransformationEngine {
   }
 
   /**
-   * Apply custom rule (user-defined function)
+   * Apply safe custom rule using predefined safe functions
+   * SECURITY: Replaces dangerous new Function() with safe, predefined functions
    */
-  private applyCustomRule(
+  private applySafeCustomRule(
     value: unknown,
     rule: any,
     context: TransformationContext,
     ruleName: string,
   ): TransformationResult {
-    const customFunction = rule.customFunction;
-    if (!customFunction) {
+    // Check if customFunction is provided (legacy support)
+    if (rule.customFunction) {
       return {
         success: false,
         originalValue: value,
         error: new TransformationError(
-          'Custom rule requires customFunction',
+          "Custom function execution is disabled for security reasons. Use predefined safe functions instead.",
+          context.path,
+          value,
+          rule.targetType,
+          ruleName,
+        ),
+        appliedTransformations: [],
+      };
+    }
+
+    const functionName = rule.functionName;
+    if (!functionName) {
+      return {
+        success: false,
+        originalValue: value,
+        error: new TransformationError(
+          "Custom rule requires functionName (customFunction is disabled for security)",
+          context.path,
+          value,
+          rule.targetType,
+          ruleName,
+        ),
+        appliedTransformations: [],
+      };
+    }
+
+    const safeFunction = SafeTransformationFunctions.get(functionName);
+    if (!safeFunction) {
+      const availableFunctions =
+        SafeTransformationFunctions.getAvailableFunctions();
+      return {
+        success: false,
+        originalValue: value,
+        error: new TransformationError(
+          `Unknown safe function '${functionName}'. Available functions: ${availableFunctions.join(", ")}`,
           context.path,
           value,
           rule.targetType,
@@ -920,23 +1474,20 @@ export class TransformationEngine {
     }
 
     try {
-      // In a real implementation, you might want to use a safer method
-      // than eval, such as a proper expression evaluator or plugin system
-      const transformFunction = new Function('value', 'params', 'context', `return (${customFunction})(value, params, context)`);
-      const transformedValue = transformFunction(value, rule.params || {}, context);
+      const transformedValue = safeFunction(value, rule.params || {});
 
       return {
         success: true,
         value: transformedValue,
         originalValue: value,
-        appliedTransformations: [`${ruleName}-${customFunction.substring(0, 20)}...`],
+        appliedTransformations: [`${ruleName}-${functionName}`],
       };
     } catch (error) {
       return {
         success: false,
         originalValue: value,
         error: new TransformationError(
-          `Custom rule failed: ${error instanceof Error ? error.message : String(error)}`,
+          `Safe custom function failed: ${error instanceof Error ? error.message : String(error)}`,
           context.path,
           value,
           rule.targetType,
@@ -951,11 +1502,11 @@ export class TransformationEngine {
    * Get the type of a value for transformation rules
    */
   private getValueType(value: unknown): string {
-    if (value === null) return 'null';
-    if (value === undefined) return 'undefined';
-    if (Array.isArray(value)) return 'array';
-    if (value instanceof Date) return 'date';
-    if (value instanceof RegExp) return 'regexp';
+    if (value === null) return "null";
+    if (value === undefined) return "undefined";
+    if (Array.isArray(value)) return "array";
+    if (value instanceof Date) return "date";
+    if (value instanceof RegExp) return "regexp";
     return typeof value;
   }
 
@@ -966,16 +1517,22 @@ export class TransformationEngine {
     error: unknown,
     context: TransformationContext,
   ): TransformationResult<T> {
-    const strategy = context.config.transformationStrategy || this.defaultStrategy;
-    const transformationError = error instanceof TransformationError 
-      ? error 
-      : new TransformationError(String(error), context.path, context.sourceValue);
+    const strategy =
+      context.config.transformationStrategy || this.defaultStrategy;
+    const transformationError =
+      error instanceof TransformationError
+        ? error
+        : new TransformationError(
+            String(error),
+            context.path,
+            context.sourceValue,
+          );
 
     switch (strategy.onError) {
-      case 'throw':
+      case "throw":
         throw transformationError;
 
-      case 'skip':
+      case "skip":
         return {
           success: true,
           value: context.sourceValue as T,
@@ -983,23 +1540,24 @@ export class TransformationEngine {
           appliedTransformations: [],
         };
 
-      case 'default':
+      case "default":
         return {
           success: true,
           value: (strategy.defaultValue ?? context.sourceValue) as T,
           originalValue: context.sourceValue,
-          appliedTransformations: ['default-fallback'],
+          appliedTransformations: ["default-fallback"],
         };
 
-      case 'custom':
+      case "custom":
         if (strategy.customErrorHandler) {
           try {
-            const fallbackValue = strategy.customErrorHandler(transformationError);
+            const fallbackValue =
+              strategy.customErrorHandler(transformationError);
             return {
               success: true,
               value: fallbackValue as T,
               originalValue: context.sourceValue,
-              appliedTransformations: ['custom-error-handler'],
+              appliedTransformations: ["custom-error-handler"],
             };
           } catch (handlerError) {
             throw transformationError;
@@ -1015,15 +1573,19 @@ export class TransformationEngine {
   /**
    * Check if source and target types match
    */
-  private typesMatch(sourceType: string, targetType: string, value: unknown): boolean {
+  private typesMatch(
+    sourceType: string,
+    targetType: string,
+    value: unknown,
+  ): boolean {
     if (sourceType === targetType) return true;
-    
+
     // Special cases
-    if (targetType === 'date' && value instanceof Date) return true;
-    if (targetType === 'array' && Array.isArray(value)) return true;
-    if (targetType === 'null' && value === null) return true;
-    if (targetType === 'undefined' && value === undefined) return true;
-    
+    if (targetType === "date" && value instanceof Date) return true;
+    if (targetType === "array" && Array.isArray(value)) return true;
+    if (targetType === "null" && value === null) return true;
+    if (targetType === "undefined" && value === undefined) return true;
+
     return false;
   }
 }
@@ -1033,10 +1595,13 @@ export class TransformationEngine {
  */
 export function getBuiltInTransformers(): TransformerRegistry {
   return {
-    'string-to-number': {
-      sourceTypes: ['string'],
-      targetType: 'number',
-      canTransform: (value) => typeof value === 'string' && !isNaN(Number(value)) && value.trim() !== '',
+    "string-to-number": {
+      sourceTypes: ["string"],
+      targetType: "number",
+      canTransform: (value) =>
+        typeof value === "string" &&
+        !isNaN(Number(value)) &&
+        value.trim() !== "",
       transform: (value) => {
         const num = Number(value);
         if (isNaN(num)) {
@@ -1045,39 +1610,40 @@ export function getBuiltInTransformers(): TransformerRegistry {
         return num;
       },
       metadata: {
-        description: 'Converts string to number',
+        description: "Converts string to number",
         examples: [
-          { input: '123', output: 123 },
-          { input: '45.67', output: 45.67 },
+          { input: "123", output: 123 },
+          { input: "45.67", output: 45.67 },
         ],
       },
     },
 
-    'string-to-boolean': {
-      sourceTypes: ['string'],
-      targetType: 'boolean',
-      canTransform: (value) => typeof value === 'string',
+    "string-to-boolean": {
+      sourceTypes: ["string"],
+      targetType: "boolean",
+      canTransform: (value) => typeof value === "string",
       transform: (value) => {
         const str = (value as string).toLowerCase().trim();
-        if (['true', '1', 'yes', 'on'].includes(str)) return true;
-        if (['false', '0', 'no', 'off', ''].includes(str)) return false;
+        if (["true", "1", "yes", "on"].includes(str)) return true;
+        if (["false", "0", "no", "off", ""].includes(str)) return false;
         throw new Error(`Cannot convert "${value}" to boolean`);
       },
       metadata: {
-        description: 'Converts string to boolean',
+        description: "Converts string to boolean",
         examples: [
-          { input: 'true', output: true },
-          { input: 'false', output: false },
-          { input: '1', output: true },
-          { input: '0', output: false },
+          { input: "true", output: true },
+          { input: "false", output: false },
+          { input: "1", output: true },
+          { input: "0", output: false },
         ],
       },
     },
 
-    'string-to-date': {
-      sourceTypes: ['string'],
-      targetType: 'date',
-      canTransform: (value) => typeof value === 'string' && !isNaN(Date.parse(value)),
+    "string-to-date": {
+      sourceTypes: ["string"],
+      targetType: "date",
+      canTransform: (value) =>
+        typeof value === "string" && !isNaN(Date.parse(value)),
       transform: (value) => {
         const date = new Date(value as string);
         if (isNaN(date.getTime())) {
@@ -1086,49 +1652,52 @@ export function getBuiltInTransformers(): TransformerRegistry {
         return date;
       },
       metadata: {
-        description: 'Converts string to Date',
+        description: "Converts string to Date",
         examples: [
-          { input: '2023-01-01', output: new Date('2023-01-01') },
-          { input: '2023-01-01T12:00:00Z', output: new Date('2023-01-01T12:00:00Z') },
+          { input: "2023-01-01", output: new Date("2023-01-01") },
+          {
+            input: "2023-01-01T12:00:00Z",
+            output: new Date("2023-01-01T12:00:00Z"),
+          },
         ],
       },
     },
 
-    'number-to-string': {
-      sourceTypes: ['number'],
-      targetType: 'string',
-      canTransform: (value) => typeof value === 'number',
+    "number-to-string": {
+      sourceTypes: ["number"],
+      targetType: "string",
+      canTransform: (value) => typeof value === "number",
       transform: (value) => String(value),
       metadata: {
-        description: 'Converts number to string',
+        description: "Converts number to string",
         examples: [
-          { input: 123, output: '123' },
-          { input: 45.67, output: '45.67' },
+          { input: 123, output: "123" },
+          { input: 45.67, output: "45.67" },
         ],
       },
     },
 
-    'boolean-to-string': {
-      sourceTypes: ['boolean'],
-      targetType: 'string',
-      canTransform: (value) => typeof value === 'boolean',
+    "boolean-to-string": {
+      sourceTypes: ["boolean"],
+      targetType: "string",
+      canTransform: (value) => typeof value === "boolean",
       transform: (value) => String(value),
       metadata: {
-        description: 'Converts boolean to string',
+        description: "Converts boolean to string",
         examples: [
-          { input: true, output: 'true' },
-          { input: false, output: 'false' },
+          { input: true, output: "true" },
+          { input: false, output: "false" },
         ],
       },
     },
 
-    'number-to-boolean': {
-      sourceTypes: ['number'],
-      targetType: 'boolean',
-      canTransform: (value) => typeof value === 'number',
+    "number-to-boolean": {
+      sourceTypes: ["number"],
+      targetType: "boolean",
+      canTransform: (value) => typeof value === "number",
       transform: (value) => Boolean(value),
       metadata: {
-        description: 'Converts number to boolean (0 = false, non-zero = true)',
+        description: "Converts number to boolean (0 = false, non-zero = true)",
         examples: [
           { input: 0, output: false },
           { input: 1, output: true },
@@ -1137,42 +1706,39 @@ export function getBuiltInTransformers(): TransformerRegistry {
       },
     },
 
-    'date-to-string': {
-      sourceTypes: ['object'],
-      targetType: 'string',
+    "date-to-string": {
+      sourceTypes: ["object"],
+      targetType: "string",
       canTransform: (value) => value instanceof Date,
       transform: (value) => (value as Date).toISOString(),
       metadata: {
-        description: 'Converts Date to ISO string',
+        description: "Converts Date to ISO string",
         examples: [
-          { input: new Date('2023-01-01'), output: '2023-01-01T00:00:00.000Z' },
+          { input: new Date("2023-01-01"), output: "2023-01-01T00:00:00.000Z" },
         ],
       },
     },
 
-    'array-to-string': {
-      sourceTypes: ['object'],
-      targetType: 'string',
+    "array-to-string": {
+      sourceTypes: ["object"],
+      targetType: "string",
       canTransform: (value) => Array.isArray(value),
       transform: (value) => JSON.stringify(value),
       metadata: {
-        description: 'Converts array to JSON string',
-        examples: [
-          { input: [1, 2, 3], output: '[1,2,3]' },
-        ],
+        description: "Converts array to JSON string",
+        examples: [{ input: [1, 2, 3], output: "[1,2,3]" }],
       },
     },
 
-    'object-to-string': {
-      sourceTypes: ['object'],
-      targetType: 'string',
-      canTransform: (value) => typeof value === 'object' && value !== null && !Array.isArray(value),
+    "object-to-string": {
+      sourceTypes: ["object"],
+      targetType: "string",
+      canTransform: (value) =>
+        typeof value === "object" && value !== null && !Array.isArray(value),
       transform: (value) => JSON.stringify(value),
       metadata: {
-        description: 'Converts object to JSON string',
-        examples: [
-          { input: { a: 1 }, output: '{"a":1}' },
-        ],
+        description: "Converts object to JSON string",
+        examples: [{ input: { a: 1 }, output: '{"a":1}' }],
       },
     },
   };
@@ -1183,8 +1749,8 @@ export function getBuiltInTransformers(): TransformerRegistry {
  */
 export function getDefaultTransformationStrategy(): TransformationStrategy {
   return {
-    onError: 'throw',
+    onError: "throw",
     allowChaining: false,
     maxDepth: 10,
   };
-} 
+}

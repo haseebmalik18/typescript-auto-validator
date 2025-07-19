@@ -51,7 +51,8 @@ export interface TypeTransformations {
 export interface TransformationRule {
   type: 'coerce' | 'parse' | 'format' | 'sanitize' | 'custom';
   targetType?: string;
-  customFunction?: string;
+  customFunction?: string; // Deprecated for security - use functionName instead
+  functionName?: string; // Name of predefined safe function
   params?: Record<string, unknown>;
   condition?: TransformationCondition;
 }

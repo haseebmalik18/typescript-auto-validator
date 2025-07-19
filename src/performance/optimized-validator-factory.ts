@@ -57,15 +57,13 @@ export class OptimizedValidatorFactory extends ValidatorFactory {
       if (cached !== undefined) {
         const memoryAfter = process.memoryUsage?.()?.heapUsed || 0;
         this.performanceMonitor.recordEvent({
-          type: 'complete',
-          validatorType: typeInfo.kind,
-          path: path,
+          type: 'cache-hit',
+          interfaceName: typeInfo.kind,
           duration: performance.now() - startTime,
           success: true,
           cacheUsed: true,
-          memoryBefore,
-          memoryAfter,
-          timestamp: new Date(),
+          memoryDelta: memoryAfter - memoryBefore,
+          timestamp: Date.now(),
         });
         return cached;
       }
@@ -80,14 +78,12 @@ export class OptimizedValidatorFactory extends ValidatorFactory {
         const memoryAfter = process.memoryUsage?.()?.heapUsed || 0;
         this.performanceMonitor.recordEvent({
           type: 'complete',
-          validatorType: typeInfo.kind,
-          path: path,
+          interfaceName: typeInfo.kind,
           duration: performance.now() - startTime,
           success: true,
           cacheUsed: false,
-          memoryBefore,
-          memoryAfter,
-          timestamp: new Date(),
+          memoryDelta: memoryAfter - memoryBefore,
+          timestamp: Date.now(),
         });
         
         return result;
@@ -96,15 +92,13 @@ export class OptimizedValidatorFactory extends ValidatorFactory {
         const memoryAfter = process.memoryUsage?.()?.heapUsed || 0;
         this.performanceMonitor.recordEvent({
           type: 'error',
-          validatorType: typeInfo.kind,
-          path: path,
+          interfaceName: typeInfo.kind,
           duration: performance.now() - startTime,
           success: false,
-          error: error instanceof Error ? error.message : String(error),
+          error: error instanceof Error ? error : new Error(String(error)),
           cacheUsed: false,
-          memoryBefore,
-          memoryAfter,
-          timestamp: new Date(),
+          memoryDelta: memoryAfter - memoryBefore,
+          timestamp: Date.now(),
         });
         throw error;
       }

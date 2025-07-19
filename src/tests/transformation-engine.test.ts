@@ -488,7 +488,7 @@ describe('TransformationEngine - Advanced Rules', () => {
             autoTransform: true,
             preTransform: [{
               type: 'custom',
-              customFunction: '(value, params) => value.split("").reverse().join("")'
+              functionName: 'reverse'
             }]
           }
         };
@@ -506,7 +506,7 @@ describe('TransformationEngine - Advanced Rules', () => {
             autoTransform: true,
             preTransform: [{
               type: 'custom',
-              customFunction: '(value, params) => value.repeat(params.times || 1)',
+              functionName: 'repeat',
               params: { times: 3 }
             }]
           }
@@ -525,7 +525,7 @@ describe('TransformationEngine - Advanced Rules', () => {
             autoTransform: true,
             preTransform: [{
               type: 'custom',
-              customFunction: 'function(value) { throw new Error("Custom error"); }'
+              functionName: 'throwError'
             }],
             options: {
               failFast: true
