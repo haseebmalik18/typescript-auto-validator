@@ -1,6 +1,6 @@
 {
   "name": "typescript-runtime-validator",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Advanced TypeScript runtime validation with zero-config type safety, framework integrations, and enterprise-grade transformation rules",
   "type": "module",
   "main": "dist/index.js",
@@ -34,7 +34,8 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "keywords": [
     "typescript",
@@ -47,20 +48,22 @@
     "middleware",
     "transformation",
     "schema",
-    "type-guards"
+    "type-guards",
+    "build-plugin",
+    "zero-config"
   ],
-  "author": "Your Name <your.email@example.com>",
+  "author": "HaseebUlhaq Malik <haseebulhaq55@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/typescript-runtime-validator.git"
+    "url": "https://github.com/haseebmalik18/typescript-runtime-validator.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/typescript-runtime-validator/issues"
+    "url": "https://github.com/haseebmalik18/typescript-runtime-validator/issues"
   },
-  "homepage": "https://github.com/yourusername/typescript-runtime-validator#readme",
+  "homepage": "https://github.com/haseebmalik18/typescript-runtime-validator#readme",
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
   "scripts": {
     "build": "tsc",
@@ -68,11 +71,13 @@
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
-    "test:transformer": "NODE_OPTIONS=--experimental-vm-modules jest tests/unit/transformer.test.ts",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts",
-    "clean": "rm -rf dist dist-test coverage",
-    "prepublishOnly": "npm run clean && npm run build && npm test"
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build && npm test",
+    "pack:dry": "npm pack --dry-run",
+    "version": "npm run build && git add .",
+    "postversion": "git push && git push --tags"
   },
   "devDependencies": {
     "@jest/globals": "^29.5.0",
@@ -101,7 +106,8 @@
   "peerDependencies": {
     "express": ">=4.0.0",
     "next": ">=12.0.0",
-    "react": ">=16.8.0"
+    "react": ">=16.8.0",
+    "typescript": ">=4.5.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -111,6 +117,9 @@
       "optional": true
     },
     "next": {
+      "optional": true
+    },
+    "typescript": {
       "optional": true
     }
   }
