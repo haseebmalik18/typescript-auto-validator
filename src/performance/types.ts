@@ -1,49 +1,28 @@
-/**
- * Performance & Optimization Types - Phase 2 Week 7
- * Enterprise-grade type definitions for performance monitoring
- */
-
-/**
- * Performance metrics collected during validation
- */
 export interface PerformanceMetrics {
-  /** Total validation time in milliseconds */
   totalTime: number;
-  /** Number of validations performed */
   validationCount: number;
-  /** Average validation time per operation */
   averageTime: number;
-  /** Memory usage in bytes */
   memoryUsage: number;
-  /** Cache hit ratio (0-1) */
   cacheHitRatio: number;
-  /** Number of cache hits */
   cacheHits: number;
-  /** Number of cache misses */
   cacheMisses: number;
-  /** Peak memory usage during operation */
   peakMemoryUsage: number;
-  /** Timestamp when metrics were collected */
   timestamp: Date;
-  /** Custom labels for categorizing metrics */
-  labels?: Record<string, string>;
 }
 
-/**
- * Cache strategies for validation optimization
- */
-export type CacheStrategy = 
-  | 'lru'           // Least Recently Used
-  | 'lfu'           // Least Frequently Used
-  | 'ttl'           // Time To Live
-  | 'adaptive'      // Adaptive based on usage patterns
-  | 'none';         // No caching
+export interface ValidationEvent {
+  type: 'start' | 'complete' | 'error' | 'cache-hit' | 'cache-miss';
+  interfaceName?: string;
+  duration?: number;
+  success?: boolean;
+  error?: Error;
+  cacheUsed?: boolean;
+  memoryDelta?: number;
+  timestamp: number;
+}
 
-/**
- * Cache configuration options
- */
-export interface CacheConfiguration {
-  strategy: CacheStrategy;
+export interface CacheConfig {
+  strategy: 'lru' | 'fifo' | 'lfu' | 'ttl';
   maxSize: number;
   ttlMs?: number;
   maxMemoryMB?: number;
@@ -51,95 +30,9 @@ export interface CacheConfiguration {
   enableMetrics?: boolean;
 }
 
-/**
- * Cache statistics and performance data
- */
-export interface CacheStatistics {
-  size: number;
-  maxSize: number;
-  hitCount: number;
-  missCount: number;
-  hitRatio: number;
-  evictionCount: number;
-  memoryUsageBytes: number;
-  averageAccessTime: number;
-  oldestEntryAge: number;
-  newestEntryAge: number;
-}
-
-/**
- * Memory usage tracking
- */
-export interface MemoryUsage {
-  used: number;
-  total: number;
-  free: number;
-  percentage: number;
-  external: number;
-  heapUsed: number;
-  heapTotal: number;
-  rss: number;
-}
-
-/**
- * Benchmark test result
- */
-export interface BenchmarkResult {
-  name: string;
-  operationsPerSecond: number;
-  averageTime: number;
-  minTime: number;
-  maxTime: number;
-  standardDeviation: number;
-  memoryUsage: MemoryUsage;
-  iterations: number;
-  duration: number;
-  success: boolean;
-  error?: string;
-}
-
-/**
- * Validation performance profile
- */
-export interface ValidationProfile {
-  validatorType: string;
-  complexity: 'simple' | 'medium' | 'complex' | 'very-complex';
-  objectSize: 'small' | 'medium' | 'large' | 'very-large';
-  averageTime: number;
-  samples: number;
-  standardDeviation: number;
-  percentiles: {
-    p50: number;
-    p90: number;
-    p95: number;
-    p99: number;
-  };
-}
-
-/**
- * Optimization levels for different environments
- */
-export type OptimizationLevel = 
-  | 'development'   // Full debugging, minimal optimization
-  | 'testing'       // Balanced performance with debugging
-  | 'staging'       // Production-like with some debugging
-  | 'production';   // Maximum performance, minimal debugging
-
-/**
- * Error recovery strategies
- */
-export type ErrorRecoveryStrategy = 
-  | 'fail-fast'     // Stop on first error
-  | 'collect-all'   // Collect all errors before failing
-  | 'graceful'      // Attempt to recover and continue
-  | 'best-effort';  // Return partial results on error
-
-/**
- * Optimization configuration
- */
 export interface OptimizationConfig {
-  level: OptimizationLevel;
-  caching: CacheConfiguration;
+  level: 'development' | 'production' | 'aggressive';
+  caching: CacheConfig;
   errorRecovery: ErrorRecoveryStrategy;
   enableMetrics: boolean;
   enableProfiling: boolean;
@@ -148,54 +41,165 @@ export interface OptimizationConfig {
   errorThresholdMs: number;
 }
 
-/**
- * Validation event for monitoring
- */
-export interface ValidationEvent {
-  type: 'start' | 'complete' | 'error' | 'cache-hit' | 'cache-miss';
-  validatorType: string;
-  path: string;
-  duration?: number;
-  success: boolean;
-  error?: string;
-  cacheUsed: boolean;
-  memoryBefore: number;
-  memoryAfter: number;
+export type ErrorRecoveryStrategy = 'fail-fast' | 'collect-all' | 'graceful' | 'best-effort';
+
+export interface CacheMetrics {
+  hitCount: number;
+  missCount: number;
+  hitRatio: number;
+  totalSize: number;
+  maxSize: number;
+  memoryUsage: number;
+  evictionCount: number;
+  averageAccessTime: number;
+}
+
+export interface ValidationProfile {
+  interfaceName: string;
+  validationCount: number;
+  totalTime: number;
+  averageTime: number;
+  minTime: number;
+  maxTime: number;
+  errorCount: number;
+  errorRate: number;
+  cacheHitRate: number;
+  memoryUsage: number;
+  complexity: number;
+}
+
+export interface ProfilingReport {
+  totalValidations: number;
+  totalTime: number;
+  averageTime: number;
+  memoryUsage: number;
+  cacheEfficiency: number;
+  interfaceProfiles: ValidationProfile[];
+  topSlowInterfaces: ValidationProfile[];
+  topErrorProneInterfaces: ValidationProfile[];
+  recommendations: string[];
   timestamp: Date;
 }
 
-/**
- * Performance warning threshold
- */
-export interface PerformanceThreshold {
-  name: string;
-  metric: keyof PerformanceMetrics;
-  threshold: number;
-  operator: '>' | '<' | '>=' | '<=' | '==' | '!=';
-  severity: 'info' | 'warning' | 'error' | 'critical';
+export interface ResourceMonitor {
+  cpuUsage: number;
+  memoryUsage: number;
+  heapUsed: number;
+  heapTotal: number;
+  external: number;
+  arrayBuffers: number;
+  timestamp: number;
 }
 
-/**
- * Hot path detection for optimization
- */
-export interface HotPath {
-  path: string;
-  validatorType: string;
-  frequency: number;
+export interface MemorySnapshot {
+  before: ResourceMonitor;
+  after: ResourceMonitor;
+  delta: {
+    memory: number;
+    heap: number;
+    external: number;
+  };
+}
+
+export interface ThresholdConfig {
+  warningMs: number;
+  errorMs: number;
+  memoryWarningMB: number;
+  memoryErrorMB: number;
+  cacheHitRateWarning: number;
+}
+
+export interface Alert {
+  type: 'warning' | 'error' | 'critical';
+  message: string;
+  metric: string;
+  value: number;
+  threshold: number;
+  timestamp: Date;
+  context?: Record<string, unknown>;
+}
+
+export interface CompilationMetrics {
+  fileCount: number;
+  interfaceCount: number;
+  generatedValidatorCount: number;
+  compilationTime: number;
+  codeSize: number;
+  dependencies: string[];
+  warnings: string[];
+  errors: string[];
+}
+
+export interface RuntimeMetrics {
+  uptime: number;
+  totalValidations: number;
+  validationsPerSecond: number;
+  averageResponseTime: number;
+  errorRate: number;
+  memoryTrend: number[];
+  performanceTrend: number[];
+}
+
+export interface SystemHealth {
+  status: 'healthy' | 'degraded' | 'critical';
+  score: number;
+  issues: Alert[];
+  recommendations: string[];
+  lastCheck: Date;
+}
+
+export interface BenchmarkResult {
+  name: string;
+  iterations: number;
   totalTime: number;
   averageTime: number;
-  suggestion: string;
+  minTime: number;
+  maxTime: number;
+  standardDeviation: number;
+  operationsPerSecond: number;
+  memoryUsage: number;
 }
 
-/**
- * Memory pool configuration for object reuse
- */
-export interface MemoryPoolConfig {
-  enabled?: boolean;
-  maxPoolSize?: number;
-  objectTypes?: string[];
-  cleanupIntervalMs?: number;
-  maxObjectAge?: number;
-  gcInterval?: number;
-  memoryThreshold?: number;
+export interface LoadTestConfig {
+  concurrency: number;
+  duration: number;
+  rampUpTime: number;
+  targetRps: number;
+  dataSize: number;
+  validationComplexity: 'simple' | 'medium' | 'complex';
+}
+
+export interface LoadTestResult {
+  config: LoadTestConfig;
+  totalRequests: number;
+  successfulRequests: number;
+  failedRequests: number;
+  averageResponseTime: number;
+  p95ResponseTime: number;
+  p99ResponseTime: number;
+  throughput: number;
+  errorRate: number;
+  resourceUsage: ResourceMonitor[];
+  timestamps: number[];
+}
+
+export interface PerformanceReport {
+  summary: {
+    period: string;
+    totalValidations: number;
+    averageTime: number;
+    errorRate: number;
+    cacheHitRate: number;
+  };
+  trends: {
+    performance: number[];
+    memory: number[];
+    errors: number[];
+    cache: number[];
+  };
+  topInterfaces: ValidationProfile[];
+  alerts: Alert[];
+  recommendations: string[];
+  benchmarks: BenchmarkResult[];
+  generatedAt: Date;
 } 

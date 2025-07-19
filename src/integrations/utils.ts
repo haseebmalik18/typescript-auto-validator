@@ -289,42 +289,6 @@ export function getEnvironment(): 'development' | 'production' | 'test' {
 }
 
 /**
- * Performance measurement utility
- */
-export class PerformanceTracker {
-  private startTime: number;
-  private marks: Map<string, number> = new Map();
-  
-  constructor() {
-    this.startTime = performance.now();
-  }
-  
-  mark(name: string): void {
-    this.marks.set(name, performance.now());
-  }
-  
-  measure(name: string): number {
-    const markTime = this.marks.get(name);
-    if (!markTime) {
-      throw new Error(`Mark '${name}' not found`);
-    }
-    return markTime - this.startTime;
-  }
-  
-  getTotalTime(): number {
-    return performance.now() - this.startTime;
-  }
-  
-  getAllMeasures(): Record<string, number> {
-    const result: Record<string, number> = {};
-    for (const [name, time] of this.marks) {
-      result[name] = time - this.startTime;
-    }
-    return result;
-  }
-}
-
-/**
  * Type guard to check if an error is a ValidationError
  */
 export function isValidationError(error: unknown): error is ValidationError {
@@ -344,4 +308,48 @@ export function sanitizeErrorForSerialization(error: ValidationError): Record<st
     // Don't include the raw value as it might contain sensitive data
     // value: error.value,
   };
+} 
+
+export function createMockRequest(data: unknown = {}): any {
+  return {
+    body: data,
+    query: {},
+    params: {},
+    headers: {},
+    method: 'POST',
+    url: '/test',
+    get: (header: string) => undefined,
+    header: (header: string) => undefined,
+  };
+}
+
+export function createMockResponse(): any {
+  const res: any = {
+    statusCode: 200,
+    headersSent: false,
+    locals: {},
+    headers: {},
+    _body: undefined,
+    status: function(code: number) {
+      this.statusCode = code;
+      return this;
+    },
+    json: function(data: any) {
+      this._body = data;
+      return this;
+    },
+    send: function(data: any) {
+      this._body = data;
+      return this;
+    },
+    setHeader: function(name: string, value: string) {
+      this.headers = this.headers || {};
+      this.headers[name] = value;
+      return this;
+    },
+    end: function() {
+      return this;
+    },
+  };
+  return res;
 } 

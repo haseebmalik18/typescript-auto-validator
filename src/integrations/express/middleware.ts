@@ -1,435 +1,563 @@
-import { Request, Response, NextFunction } from 'express';
-import { InterfaceInfo } from '../../types.js';
-import { ValidatorFactory } from '../../validator/validator-factory.js';
-import { ValidationError } from '../../validator/error-handler.js';
-import { 
-  RequestValidationOptions,
-  ValidationContext,
-} from '../types.js';
-import { 
-  createValidationContext,
-  wrapValidation,
-  formatValidationErrorForHttp,
-  shouldIncludeErrorDetails,
-  log,
-} from '../utils.js';
+import { Request, Response, NextFunction } from "express";
+import { InterfaceInfo } from "../../types.js";
+import { ValidatorFactory } from "../../validator/validator-factory.js";
+import { ValidationError } from "../../validator/error-handler.js";
+import { wrapValidation, createValidationContext } from "../utils.js";
+import { IntegrationConfig } from "../types.js";
 
 /**
- * Express middleware that validates request data against TypeScript interfaces
- * 
- * @example
- * ```typescript
- * interface CreateUserRequest {
- *   name: string;
- *   email: string;
- *   age: number;
- * }
- * 
- * app.post('/users', 
- *   createValidationMiddleware<CreateUserRequest>(createUserInterfaceInfo, {
- *     validateBody: true,
- *     validateQuery: false,
- *     validateParams: false,
- *   }),
- *   (req, res) => {
- *     // req.body is now guaranteed to match CreateUserRequest
- *     const user = createUser(req.body);
- *     res.json(user);
- *   }
- * );
- * ```
+ * Configuration options for Express validation middleware
  */
-export function createValidationMiddleware<T = any>(
-  interfaceInfo: InterfaceInfo,
-  options: RequestValidationOptions = {}
-) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const config = {
+export interface ExpressValidationConfig extends IntegrationConfig {
+  /** Which parts of the request to validate */
+  validateBody?: boolean;
+  validateQuery?: boolean;
+  validateParams?: boolean;
+  validateHeaders?: boolean;
+
+  /** Custom error status code */
+  errorStatusCode?: number;
+
+  /** Whether to include error details in response */
+  includeErrorDetails?: boolean;
+
+  /** Custom error response formatter */
+  formatError?: (error: ValidationError, req: Request) => any;
+
+  /** Whether to continue on validation errors (for logging/analytics) */
+  continueOnError?: boolean;
+
+  /** Custom success response formatter */
+  formatSuccess?: (data: any, req: Request) => any;
+
+  /** Performance monitoring */
+  trackPerformance?: boolean;
+
+  /** Skip validation for certain conditions */
+  skipValidation?: (req: Request) => boolean;
+}
+
+/**
+ * Extended Request interface with validated data
+ */
+export interface ValidatedRequest<TBody = any, TQuery = any, TParams = any>
+  extends Request {
+  validatedBody?: TBody;
+  validatedQuery?: TQuery;
+  validatedParams?: TParams;
+  validationMetadata?: {
+    validationTime: number;
+    validatedParts: string[];
+    warnings: string[];
+  };
+}
+
+/**
+ * Validation middleware factory for Express.js
+ * Provides comprehensive request validation with type safety
+ */
+export class ExpressValidationMiddleware {
+  private validatorFactory: ValidatorFactory;
+  private defaultConfig: ExpressValidationConfig;
+
+  constructor(config: ExpressValidationConfig = {}) {
+    this.validatorFactory = new ValidatorFactory(config);
+    this.defaultConfig = {
       validateBody: true,
       validateQuery: false,
       validateParams: false,
       validateHeaders: false,
       errorStatusCode: 400,
-      includeErrorDetails: shouldIncludeErrorDetails(options.includeErrorDetails),
-      ...options,
+      includeErrorDetails: true,
+      continueOnError: false,
+      trackPerformance: true,
+      enableLogging: false,
+      ...config,
     };
-    
-    try {
-      const validator = new ValidatorFactory().createValidator<T>(interfaceInfo, config);
-      const context = createValidationContext(
-        `express.${req.method}.${req.path}`,
-        req,
-        res
-      );
-      
-      if (config.enableLogging) {
-        log(config, 'info', `Validating request ${req.method} ${req.path}`, {
-          validateBody: config.validateBody,
-          validateQuery: config.validateQuery,
-          validateParams: config.validateParams,
-          validateHeaders: config.validateHeaders,
-        });
-      }
-      
-      // Validate request body
-      if (config.validateBody && req.body !== undefined) {
-        const bodyResult = wrapValidation(
-          () => validator(req.body),
-          { ...context, path: `${context.path}.body` },
-          config
-        );
-        
-        if (!bodyResult.success && bodyResult.error) {
-          throw bodyResult.error;
-        }
-        
-        if (bodyResult.data !== undefined) {
-          req.body = bodyResult.data;
-        }
-      }
-      
-      // Validate query parameters
-      if (config.validateQuery && Object.keys(req.query).length > 0) {
-        const queryResult = wrapValidation(
-          () => validator(req.query),
-          { ...context, path: `${context.path}.query` },
-          config
-        );
-        
-        if (!queryResult.success && queryResult.error) {
-          throw queryResult.error;
-        }
-        
-        if (queryResult.data !== undefined) {
-          req.query = queryResult.data as any;
-        }
-      }
-      
-      // Validate URL parameters
-      if (config.validateParams && Object.keys(req.params).length > 0) {
-        const paramsResult = wrapValidation(
-          () => validator(req.params),
-          { ...context, path: `${context.path}.params` },
-          config
-        );
-        
-        if (!paramsResult.success && paramsResult.error) {
-          throw paramsResult.error;
-        }
-        
-        if (paramsResult.data !== undefined && paramsResult.data !== null) {
-          req.params = paramsResult.data as any;
-        }
-      }
-      
-      // Validate headers
-      if (config.validateHeaders) {
-        const headersResult = wrapValidation(
-          () => validator(req.headers),
-          { ...context, path: `${context.path}.headers` },
-          config
-        );
-        
-        if (!headersResult.success && headersResult.error) {
-          throw headersResult.error;
-        }
-        
-        if (headersResult.data !== undefined && headersResult.data !== null) {
-          req.headers = headersResult.data as any;
-        }
-      }
-      
-      if (config.enableLogging) {
-        log(config, 'info', `Request validation successful for ${req.method} ${req.path}`);
-      }
-      
-      next();
-    } catch (error) {
-      if (config.enableLogging) {
-        log(config, 'error', `Request validation failed for ${req.method} ${req.path}`, {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-      
-      if (error instanceof ValidationError) {
-        const errorResponse = formatValidationErrorForHttp(error, config.includeErrorDetails);
-        res.status(config.errorStatusCode).json(errorResponse);
-      } else {
-        // Handle unexpected errors
-        const errorResponse = {
-          error: 'Internal Server Error',
-          message: 'An unexpected error occurred during validation',
-          ...(config.includeErrorDetails && { 
-            details: { originalError: String(error) } 
-          }),
-        };
-        res.status(500).json(errorResponse);
-      }
-    }
-  };
-}
+  }
 
-/**
- * Specialized middleware for validating only request body
- * 
- * @example
- * ```typescript
- * app.post('/users', 
- *   validateBodyMiddleware<CreateUserRequest>(createUserInterfaceInfo),
- *   (req, res) => {
- *     // req.body is validated
- *     res.json(req.body);
- *   }
- * );
- * ```
- */
-export function validateBodyMiddleware<T>(
-  interfaceInfo: InterfaceInfo,
-  options: RequestValidationOptions = {}
-) {
-  return createValidationMiddleware<T>(interfaceInfo, {
-    ...options,
-    validateBody: true,
-    validateQuery: false,
-    validateParams: false,
-    validateHeaders: false,
-  });
-}
-
-/**
- * Specialized middleware for validating only query parameters
- */
-export function validateQueryMiddleware<T>(
-  interfaceInfo: InterfaceInfo,
-  options: RequestValidationOptions = {}
-) {
-  return createValidationMiddleware<T>(interfaceInfo, {
-    ...options,
-    validateBody: false,
-    validateQuery: true,
-    validateParams: false,
-    validateHeaders: false,
-  });
-}
-
-/**
- * Specialized middleware for validating only URL parameters
- */
-export function validateParamsMiddleware<T>(
-  interfaceInfo: InterfaceInfo,
-  options: RequestValidationOptions = {}
-) {
-  return createValidationMiddleware<T>(interfaceInfo, {
-    ...options,
-    validateBody: false,
-    validateQuery: false,
-    validateParams: true,
-    validateHeaders: false,
-  });
-}
-
-/**
- * Middleware that validates multiple request parts with different schemas
- * 
- * @example
- * ```typescript
- * app.post('/users/:id', 
- *   validateMultipleMiddleware({
- *     body: createUserBodyInterfaceInfo,
- *     params: userParamsInterfaceInfo,
- *     query: userQueryInterfaceInfo,
- *   }),
- *   (req, res) => {
- *     // All parts are validated
- *     res.json({ body: req.body, params: req.params, query: req.query });
- *   }
- * );
- * ```
- */
-export function validateMultipleMiddleware(schemas: {
-  body?: InterfaceInfo;
-  query?: InterfaceInfo;
-  params?: InterfaceInfo;
-  headers?: InterfaceInfo;
-}, options: RequestValidationOptions = {}) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const config = {
-      errorStatusCode: 400,
-      includeErrorDetails: shouldIncludeErrorDetails(options.includeErrorDetails),
-      ...options,
-    };
-    
-    try {
-      const context = createValidationContext(
-        `express.${req.method}.${req.path}`,
-        req,
-        res
-      );
-      
-      // Validate each part with its own schema
-      if (schemas.body && req.body !== undefined) {
-        const validator = new ValidatorFactory().createValidator(schemas.body, config);
-        const result = wrapValidation(
-          () => validator(req.body),
-          { ...context, path: `${context.path}.body` },
-          config
-        );
-        
-        if (!result.success && result.error) {
-          throw result.error;
-        }
-        
-        if (result.data !== undefined) {
-          req.body = result.data;
-        }
-      }
-      
-      if (schemas.query && Object.keys(req.query).length > 0) {
-        const validator = new ValidatorFactory().createValidator(schemas.query, config);
-        const result = wrapValidation(
-          () => validator(req.query),
-          { ...context, path: `${context.path}.query` },
-          config
-        );
-        
-        if (!result.success && result.error) {
-          throw result.error;
-        }
-        
-        if (result.data !== undefined) {
-          req.query = result.data as any;
-        }
-      }
-      
-      if (schemas.params && Object.keys(req.params).length > 0) {
-        const validator = new ValidatorFactory().createValidator(schemas.params, config);
-        const result = wrapValidation(
-          () => validator(req.params),
-          { ...context, path: `${context.path}.params` },
-          config
-        );
-        
-        if (!result.success && result.error) {
-          throw result.error;
-        }
-        
-        if (result.data !== undefined && result.data !== null) {
-          req.params = result.data as any;
-        }
-      }
-      
-      if (schemas.headers) {
-        const validator = new ValidatorFactory().createValidator(schemas.headers, config);
-        const result = wrapValidation(
-          () => validator(req.headers),
-          { ...context, path: `${context.path}.headers` },
-          config
-        );
-        
-        if (!result.success && result.error) {
-          throw result.error;
-        }
-        
-        if (result.data !== undefined && result.data !== null) {
-          req.headers = result.data as any;
-        }
-      }
-      
-      next();
-    } catch (error) {
-      if (error instanceof ValidationError) {
-        const errorResponse = formatValidationErrorForHttp(error, config.includeErrorDetails);
-        res.status(config.errorStatusCode).json(errorResponse);
-      } else {
-        const errorResponse = {
-          error: 'Internal Server Error',
-          message: 'An unexpected error occurred during validation',
-          ...(config.includeErrorDetails && { 
-            details: { originalError: String(error) } 
-          }),
-        };
-        res.status(500).json(errorResponse);
-      }
-    }
-  };
-}
-
-/**
- * Middleware for async validation with Express
- * Useful when validation involves async operations like database lookups
- */
-export function createAsyncValidationMiddleware<T>(
-  interfaceInfo: InterfaceInfo,
-  asyncValidator: (data: T, req: Request, res: Response) => Promise<T>,
-  options: RequestValidationOptions = {}
-) {
-  return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    const config = {
+  /**
+   * Create middleware to validate request body
+   */
+  validateBody<T>(
+    schema: InterfaceInfo,
+    config: Partial<ExpressValidationConfig> = {},
+  ) {
+    return this.createValidationMiddleware<T>(schema, {
       validateBody: true,
-      errorStatusCode: 400,
-      includeErrorDetails: shouldIncludeErrorDetails(options.includeErrorDetails),
-      ...options,
-    };
-    
-    try {
-      // First, run standard validation
-      const validator = new ValidatorFactory().createValidator<T>(interfaceInfo, config);
-      const context = createValidationContext(
-        `express.async.${req.method}.${req.path}`,
-        req,
-        res
-      );
-      
-      let dataToValidate: unknown;
-      if (config.validateBody) {
-        dataToValidate = req.body;
-      } else if (config.validateQuery) {
-        dataToValidate = req.query;
-      } else if (config.validateParams) {
-        dataToValidate = req.params;
-      } else {
-        throw new Error('No validation target specified');
-      }
-      
-      const basicResult = wrapValidation(
-        () => validator(dataToValidate),
-        context,
-        config
-      );
-      
-      if (!basicResult.success && basicResult.error) {
-        throw basicResult.error;
-      }
-      
-      // Then run async validation
-      if (basicResult.data !== undefined) {
-        const asyncResult = await asyncValidator(basicResult.data, req, res);
-        
-        // Update the appropriate request property
-        if (config.validateBody) {
-          req.body = asyncResult;
-        } else if (config.validateQuery) {
-          req.query = asyncResult as any;
-        } else if (config.validateParams) {
-          req.params = asyncResult as any;
+      ...config,
+    });
+  }
+
+  /**
+   * Create middleware to validate query parameters
+   */
+  validateQuery<T>(
+    schema: InterfaceInfo,
+    config: Partial<ExpressValidationConfig> = {},
+  ) {
+    return this.createValidationMiddleware<T>(schema, {
+      validateQuery: true,
+      ...config,
+    });
+  }
+
+  /**
+   * Create middleware to validate URL parameters
+   */
+  validateParams<T>(
+    schema: InterfaceInfo,
+    config: Partial<ExpressValidationConfig> = {},
+  ) {
+    return this.createValidationMiddleware<T>(schema, {
+      validateParams: true,
+      ...config,
+    });
+  }
+
+  /**
+   * Create comprehensive middleware to validate multiple request parts
+   */
+  validateRequest<TBody = any, TQuery = any, TParams = any>(
+    schemas: {
+      body?: InterfaceInfo;
+      query?: InterfaceInfo;
+      params?: InterfaceInfo;
+    },
+    config: Partial<ExpressValidationConfig> = {},
+  ) {
+    const mergedConfig = { ...this.defaultConfig, ...config };
+
+    return async (
+      req: ValidatedRequest<TBody, TQuery, TParams>,
+      res: Response,
+      next: NextFunction,
+    ) => {
+      const startTime = Date.now();
+      const validatedParts: string[] = [];
+      const warnings: string[] = [];
+
+      try {
+        // Skip validation if condition is met
+        if (mergedConfig.skipValidation && mergedConfig.skipValidation(req)) {
+          return next();
         }
+
+        // Validate body
+        if (schemas.body && mergedConfig.validateBody) {
+          const bodyResult = await this.validateRequestPart(
+            req.body,
+            schemas.body,
+            "body",
+            req,
+            mergedConfig,
+          );
+          req.validatedBody = bodyResult;
+          validatedParts.push("body");
+        }
+
+        // Validate query
+        if (schemas.query && mergedConfig.validateQuery) {
+          const queryResult = await this.validateRequestPart(
+            req.query,
+            schemas.query,
+            "query",
+            req,
+            mergedConfig,
+          );
+          req.validatedQuery = queryResult;
+          validatedParts.push("query");
+        }
+
+        // Validate params
+        if (schemas.params && mergedConfig.validateParams) {
+          const paramsResult = await this.validateRequestPart(
+            req.params,
+            schemas.params,
+            "params",
+            req,
+            mergedConfig,
+          );
+          req.validatedParams = paramsResult;
+          validatedParts.push("params");
+        }
+
+        // Add validation metadata
+        if (mergedConfig.trackPerformance) {
+          req.validationMetadata = {
+            validationTime: Date.now() - startTime,
+            validatedParts,
+            warnings,
+          };
+        }
+
+        next();
+      } catch (error) {
+        this.handleValidationError(error, req, res, next, mergedConfig);
       }
-      
+    };
+  }
+
+  /**
+   * Create middleware for response validation
+   */
+  validateResponse<T>(
+    schema: InterfaceInfo,
+    config: Partial<ExpressValidationConfig> = {},
+  ) {
+    const mergedConfig = { ...this.defaultConfig, ...config };
+
+    return (req: Request, res: Response, next: NextFunction) => {
+      const originalSend = res.send.bind(res);
+      const originalJson = res.json.bind(res);
+
+      // Override res.send
+      res.send = function (body: any) {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            const validationContext = createValidationContext(
+              "express.response",
+              req,
+              res,
+            );
+            const result = wrapValidation(
+              () => {
+                const validator = new ValidatorFactory().createValidator<T>(
+                  schema,
+                );
+                return validator(body);
+              },
+              validationContext,
+              mergedConfig,
+            );
+
+            if (!result.success) {
+              if (mergedConfig.enableLogging) {
+                console.warn(
+                  "Response validation failed:",
+                  result.error?.message,
+                );
+              }
+              // Continue with original response but log the issue
+            } else {
+              body = result.data;
+            }
+          } catch (error) {
+            if (mergedConfig.enableLogging) {
+              console.warn("Response validation error:", error);
+            }
+          }
+        }
+
+        return originalSend(body);
+      };
+
+      // Override res.json
+      res.json = function (obj: any) {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            const validationContext = createValidationContext(
+              "express.response",
+              req,
+              res,
+            );
+            const result = wrapValidation(
+              () => {
+                const validator = new ValidatorFactory().createValidator<T>(
+                  schema,
+                );
+                return validator(obj);
+              },
+              validationContext,
+              mergedConfig,
+            );
+
+            if (!result.success) {
+              if (mergedConfig.enableLogging) {
+                console.warn(
+                  "Response validation failed:",
+                  result.error?.message,
+                );
+              }
+            } else {
+              obj = result.data;
+            }
+          } catch (error) {
+            if (mergedConfig.enableLogging) {
+              console.warn("Response validation error:", error);
+            }
+          }
+        }
+
+        return originalJson(obj);
+      };
+
       next();
-    } catch (error) {
+    };
+  }
+
+  /**
+   * Create error handling middleware for validation errors
+   */
+  errorHandler(config: Partial<ExpressValidationConfig> = {}) {
+    const mergedConfig = { ...this.defaultConfig, ...config };
+
+    return (error: any, req: Request, res: Response, next: NextFunction) => {
       if (error instanceof ValidationError) {
-        const errorResponse = formatValidationErrorForHttp(error, config.includeErrorDetails);
-        res.status(config.errorStatusCode).json(errorResponse);
-      } else {
-        const errorResponse = {
-          error: 'Internal Server Error',
-          message: 'An unexpected error occurred during async validation',
-          ...(config.includeErrorDetails && { 
-            details: { originalError: String(error) } 
-          }),
-        };
-        res.status(500).json(errorResponse);
+        const statusCode = mergedConfig.errorStatusCode || 400;
+        const errorResponse = this.formatErrorResponse(
+          error,
+          req,
+          mergedConfig,
+        );
+
+        return res.status(statusCode).json(errorResponse);
       }
+
+      // Pass non-validation errors to next error handler
+      next(error);
+    };
+  }
+
+  // Private helper methods
+
+  private createValidationMiddleware<T>(
+    schema: InterfaceInfo,
+    config: ExpressValidationConfig,
+  ) {
+    const mergedConfig = { ...this.defaultConfig, ...config };
+
+    return async (
+      req: ValidatedRequest<T>,
+      res: Response,
+      next: NextFunction,
+    ) => {
+      const startTime = Date.now();
+
+      try {
+        // Skip validation if condition is met
+        if (mergedConfig.skipValidation && mergedConfig.skipValidation(req)) {
+          return next();
+        }
+
+        let dataToValidate: unknown;
+        let validationPath: string;
+
+        if (mergedConfig.validateBody) {
+          dataToValidate = req.body;
+          validationPath = "body";
+        } else if (mergedConfig.validateQuery) {
+          dataToValidate = req.query;
+          validationPath = "query";
+        } else if (mergedConfig.validateParams) {
+          dataToValidate = req.params;
+          validationPath = "params";
+        } else {
+          dataToValidate = req.body;
+          validationPath = "body";
+        }
+
+        const result = await this.validateRequestPart(
+          dataToValidate,
+          schema,
+          validationPath,
+          req,
+          mergedConfig,
+        );
+
+        // Store validated data
+        if (mergedConfig.validateBody) {
+          req.validatedBody = result;
+        } else if (mergedConfig.validateQuery) {
+          req.validatedQuery = result;
+        } else if (mergedConfig.validateParams) {
+          req.validatedParams = result;
+        }
+
+        // Add performance metadata
+        if (mergedConfig.trackPerformance) {
+          req.validationMetadata = {
+            validationTime: Date.now() - startTime,
+            validatedParts: [validationPath],
+            warnings: [],
+          };
+        }
+
+        next();
+      } catch (error) {
+        this.handleValidationError(error, req, res, next, mergedConfig);
+      }
+    };
+  }
+
+  private async validateRequestPart(
+    data: unknown,
+    schema: InterfaceInfo,
+    part: string,
+    req: Request,
+    config: ExpressValidationConfig,
+  ): Promise<any> {
+    const validationContext = createValidationContext(
+      `express.${part}`,
+      req,
+      undefined,
+    );
+
+    const result = wrapValidation(
+      () => {
+        const validator = this.validatorFactory.createValidator(schema);
+        return validator(data);
+      },
+      validationContext,
+      config,
+    );
+
+    if (!result.success) {
+      throw result.error;
     }
-  };
-} 
+
+    return result.data;
+  }
+
+  private handleValidationError(
+    error: any,
+    req: Request,
+    res: Response,
+    next: NextFunction,
+    config: ExpressValidationConfig,
+  ) {
+    if (config.continueOnError) {
+      // Log error but continue
+      if (config.enableLogging) {
+        console.warn("Validation error (continuing):", error);
+      }
+      return next();
+    }
+
+    if (error instanceof ValidationError) {
+      const statusCode = config.errorStatusCode || 400;
+      const errorResponse = this.formatErrorResponse(error, req, config);
+
+      return res.status(statusCode).json(errorResponse);
+    }
+
+    // Pass non-validation errors to next error handler
+    next(error);
+  }
+
+  private formatErrorResponse(
+    error: ValidationError,
+    req: Request,
+    config: ExpressValidationConfig,
+  ) {
+    if (config.formatError) {
+      return config.formatError(error, req);
+    }
+
+    const baseResponse = {
+      error: "Validation Error",
+      message: error.message,
+      timestamp: new Date().toISOString(),
+      path: req.path,
+      method: req.method,
+    };
+
+    if (config.includeErrorDetails) {
+      return {
+        ...baseResponse,
+        details: {
+          path: error.path,
+          expected: error.expected,
+          received: error.received,
+          value: error.value,
+        },
+      };
+    }
+
+    return baseResponse;
+  }
+}
+
+/**
+ * Factory function to create validation middleware instances
+ */
+export function createValidationMiddleware(
+  options?: ExpressValidationConfig,
+): ExpressValidationMiddleware {
+  return new ExpressValidationMiddleware(options);
+}
+
+/**
+ * Default middleware instance with standard configuration
+ */
+export const expressValidation = new ExpressValidationMiddleware();
+
+/**
+ * Convenience functions for common validation scenarios
+ */
+
+/**
+ * Validate request body against schema
+ */
+export function validateBody<T>(
+  schema: InterfaceInfo,
+  config?: Partial<ExpressValidationConfig>,
+) {
+  return expressValidation.validateBody<T>(schema, config);
+}
+
+/**
+ * Validate query parameters against schema
+ */
+export function validateQuery<T>(
+  schema: InterfaceInfo,
+  config?: Partial<ExpressValidationConfig>,
+) {
+  return expressValidation.validateQuery<T>(schema, config);
+}
+
+/**
+ * Validate URL parameters against schema
+ */
+export function validateParams<T>(
+  schema: InterfaceInfo,
+  config?: Partial<ExpressValidationConfig>,
+) {
+  return expressValidation.validateParams<T>(schema, config);
+}
+
+/**
+ * Validate multiple request parts
+ */
+export function validateRequest<TBody = any, TQuery = any, TParams = any>(
+  schemas: {
+    body?: InterfaceInfo;
+    query?: InterfaceInfo;
+    params?: InterfaceInfo;
+  },
+  config?: Partial<ExpressValidationConfig>,
+) {
+  return expressValidation.validateRequest<TBody, TQuery, TParams>(
+    schemas,
+    config,
+  );
+}
+
+/**
+ * Validate response data
+ */
+export function validateResponse<T>(
+  schema: InterfaceInfo,
+  config?: Partial<ExpressValidationConfig>,
+) {
+  return expressValidation.validateResponse<T>(schema, config);
+}
+
+/**
+ * Error handling middleware for validation errors
+ */
+export function validationErrorHandler(
+  config?: Partial<ExpressValidationConfig>,
+) {
+  return expressValidation.errorHandler(config);
+}

@@ -46,6 +46,25 @@ export {
 
 export { getAdvancedTransformers } from "./advanced-transformers.js";
 
+// Export transformation validators
+export {
+  validateStringWithTransform,
+  validateNumberWithTransform,
+  validateBooleanWithTransform,
+  validateDateWithTransform,
+  validateArrayWithTransform,
+  createTransformingValidator,
+} from "./transforming-validators.js";
+
+// Export composite validation functions
+export {
+  configureValidator,
+  getValidatorConfig,
+  validateWithTransform,
+  createTransformingValidatorForType,
+  registerTransformer,
+} from "./composite-functions.js";
+
 // Export magic validator functions (NEW!)
 export {
   validate,
@@ -56,79 +75,8 @@ export {
   validateBatch,
   getAvailableValidators,
   hasValidator,
+  registerValidator,
 } from "./magic-validator.js";
 
 // Export additional transformation types
 export { TransformationError } from "../types.js";
-
-// Legacy API for backwards compatibility - use different names to avoid conflicts
-import { ValidatorFactory } from "./validator-factory.js";
-import { TypeInfo, ValidatorConfig } from "../types.js";
-
-const globalValidatorFactory = new ValidatorFactory();
-
-export function validateLegacy<T>(data: unknown, interfaceInfo?: any, config?: any): T {
-  if (!interfaceInfo) {
-    throw new Error(
-      "validateLegacy() requires interface information. Use createValidator() for reusable validators.",
-    );
-  }
-
-  const validator = globalValidatorFactory.createValidator<T>(interfaceInfo, config);
-  return validator(data);
-}
-
-export function createValidatorLegacy<T>(interfaceInfo: any, config?: any): (data: unknown) => T {
-  return globalValidatorFactory.createValidator<T>(interfaceInfo, config);
-}
-
-/**
- * Create a validator for a specific type with transformations
- */
-export function createTransformingValidatorForType<T>(typeInfo: any, config?: any): (data: unknown) => T {
-  return globalValidatorFactory.createTypeValidator<T>(typeInfo, config);
-}
-
-/**
- * Validate with transformation support
- */
-export function validateWithTransform<T>(data: unknown, interfaceInfo: any, config?: any): T {
-  const transformingConfig = { autoTransform: true, ...config };
-  const validator = globalValidatorFactory.createValidator<T>(interfaceInfo, transformingConfig);
-  return validator(data);
-}
-
-/**
- * Validate a value against a TypeScript type definition
- * This is the missing validateType function that the tests are looking for
- */
-export function validateType<T>(
-  value: unknown, 
-  typeInfo: TypeInfo, 
-  path: string = "value", 
-  config?: ValidatorConfig
-): T {
-  const validator = globalValidatorFactory.createTypeValidator<T>(typeInfo, config);
-  return validator(value, path, config);
-}
-
-/**
- * Get the global validator factory instance
- */
-export function getValidatorFactory(): ValidatorFactory {
-  return globalValidatorFactory;
-}
-
-/**
- * Configure the global validator factory with transformation settings
- */
-export function configureValidator(config: any): void {
-  globalValidatorFactory.updateConfig(config);
-}
-
-/**
- * Register a custom transformer globally
- */
-export function registerTransformer(name: string, transformer: any): void {
-  globalValidatorFactory.registerTransformer(name, transformer);
-}

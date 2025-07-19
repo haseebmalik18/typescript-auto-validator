@@ -4,7 +4,6 @@ import {
   ValidatorFactory,
   validate,
   createValidator,
-  validateType,
   validateString,
   validateNumber,
   validateBoolean,

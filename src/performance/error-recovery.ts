@@ -1,8 +1,3 @@
-/**
- * Error Recovery - Phase 2 Week 7
- * Advanced error recovery and resilience strategies
- */
-
 import { ErrorRecoveryStrategy } from './types.js';
 
 export class ErrorRecovery {
@@ -12,9 +7,6 @@ export class ErrorRecovery {
     this.strategy = strategy;
   }
 
-  /**
-   * Handle validation error according to strategy
-   */
   handleError(error: Error, context: { path: string; value: unknown }): {
     shouldContinue: boolean;
     result?: unknown;

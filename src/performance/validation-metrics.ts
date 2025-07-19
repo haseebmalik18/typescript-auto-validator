@@ -1,8 +1,3 @@
-/**
- * Validation Metrics - Phase 2 Week 7
- * Metrics collection and analysis for validation operations
- */
-
 import { PerformanceMetrics, ValidationEvent } from './types.js';
 
 export class ValidationMetrics {
@@ -13,17 +8,11 @@ export class ValidationMetrics {
     this.metrics = this.createInitialMetrics();
   }
 
-  /**
-   * Record validation event
-   */
   recordEvent(event: ValidationEvent): void {
     this.events.push(event);
     this.updateMetrics(event);
   }
 
-  /**
-   * Get current metrics
-   */
   getMetrics(): PerformanceMetrics {
     return { ...this.metrics };
   }

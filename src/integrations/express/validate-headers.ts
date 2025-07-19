@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { InterfaceInfo } from '../../types.js';
-import { createValidationMiddleware } from './middleware.js';
+import { ValidatorFactory } from '../../validator/validator-factory.js';
 import { RequestValidationOptions } from '../types.js';
 
 /**
@@ -10,11 +10,21 @@ export function validateHeaders<T>(
   interfaceInfo: InterfaceInfo,
   options: RequestValidationOptions = {}
 ) {
-  return createValidationMiddleware<T>(interfaceInfo, {
-    ...options,
-    validateBody: false,
-    validateQuery: false,
-    validateParams: false,
-    validateHeaders: true,
-  });
+  const validatorFactory = new ValidatorFactory(options);
+  const validator = validatorFactory.createValidator<T>(interfaceInfo);
+
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validatedHeaders = validator(req.headers) as T;
+      (req as any).validatedHeaders = validatedHeaders;
+      next();
+    } catch (error) {
+      const statusCode = options.errorStatusCode || 400;
+      res.status(statusCode).json({
+        error: 'Headers validation failed',
+        message: error instanceof Error ? error.message : 'Invalid headers',
+        details: options.includeErrorDetails ? error : undefined
+      });
+    }
+  };
 } 

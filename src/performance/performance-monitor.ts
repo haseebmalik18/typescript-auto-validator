@@ -1,8 +1,3 @@
-/**
- * Simple Performance Monitor
- * Basic performance monitoring for validation operations
- */
-
 import { PerformanceMetrics, ValidationEvent } from './types.js';
 
 export class PerformanceMonitor {
@@ -14,9 +9,6 @@ export class PerformanceMonitor {
     this.metrics = this.createInitialMetrics();
   }
 
-  /**
-   * Record a validation event
-   */
   recordEvent(event: ValidationEvent): void {
     if (!this.enabled) return;
 
@@ -40,16 +32,10 @@ export class PerformanceMonitor {
     this.metrics.timestamp = new Date();
   }
 
-  /**
-   * Get current metrics
-   */
   getMetrics(): PerformanceMetrics {
     return { ...this.metrics };
   }
 
-  /**
-   * Reset all metrics
-   */
   reset(): void {
     this.metrics = this.createInitialMetrics();
   }

@@ -7,7 +7,7 @@ import {
   measureValidationPerformance,
   createTestValidator,
   validateTestData,
-} from './testing/index.js';
+} from "./testing/index.js";
 
 export {
   useValidation,
@@ -19,7 +19,23 @@ export {
   withValidation as withReactValidation,
   validateProps,
   createValidatedHook,
-} from './react/index.js';
+} from "./react/index.js";
+
+export {
+  createTypeScriptResolver,
+  createFieldValidator,
+  useValidatedForm,
+  createNestedResolver,
+  transformValidationErrors,
+} from "./react/hook-form.js";
+
+export {
+  createValidatedQuery,
+  createValidatedMutation,
+  createValidatedInfiniteQuery,
+  createValidatedQueryBundle,
+  createOptimisticMutation,
+} from "./react/query.js";
 
 export {
   validateBody,
@@ -33,7 +49,7 @@ export {
   extractRequestData,
   formatExpressError,
   createExpressValidator,
-} from './express/index.js';
+} from "./express/index.js";
 
 export {
   validateRequest as nextjsValidateRequest,
@@ -45,7 +61,7 @@ export {
   extractNextRequestData,
   formatNextError,
   createNextValidator,
-} from './nextjs/index.js';
+} from "./nextjs/index.js";
 
 export {
   expectValid,
@@ -78,7 +94,7 @@ export type {
   UseValidationOptions,
   TestingConfig,
   TestAssertionResult,
-} from './types.js';
+} from "./types.js";
 
 export {
   createValidationContext,
@@ -88,5 +104,4 @@ export {
   shouldIncludeErrorDetails,
   debounce,
   isValidationError,
-  PerformanceTracker,
-} from './utils.js'; 
+} from "./utils.js";
