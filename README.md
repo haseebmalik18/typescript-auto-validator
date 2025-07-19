@@ -276,20 +276,12 @@ type Request = PendingRequest | ProcessedRequest;
 const validateRequest = createValidator<Request>();
 ```
 
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## 📄 License
 
 MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🔗 Links
-
-- **Documentation**: [Full Documentation](https://github.com/yourusername/typescript-runtime-validator)
-- **Issues**: [Report Issues](https://github.com/yourusername/typescript-runtime-validator/issues)
-- **NPM**: [Package on NPM](https://www.npmjs.com/package/typescript-runtime-validator)
+- **NPM**: [Package on NPM] Coming soon.
 
 ---
-
-**Made with ❤️ for the TypeScript community** 
