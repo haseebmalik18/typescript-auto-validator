@@ -16,7 +16,13 @@ export function validateHeaders<T>(
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
       const validatedHeaders = validator(req.headers) as T;
-      (req as any).validatedHeaders = validatedHeaders;
+      // Extend request object with validated headers
+      Object.defineProperty(req, 'validatedHeaders', {
+        value: validatedHeaders,
+        writable: false,
+        enumerable: false,
+        configurable: true
+      });
       next();
     } catch (error) {
       const statusCode = options.errorStatusCode || 400;

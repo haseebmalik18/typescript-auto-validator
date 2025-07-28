@@ -1,14 +1,3 @@
-import {
-  expectValid,
-  expectValidBatch,
-  expectInvalid,
-  expectInvalidBatch,
-  benchmarkValidation,
-  measureValidationPerformance,
-  createTestValidator,
-  validateTestData,
-} from "./testing/index.js";
-
 export {
   useValidation,
   useAsyncValidation,
@@ -63,28 +52,6 @@ export {
   createNextValidator,
 } from "./nextjs/index.js";
 
-export {
-  expectValid,
-  expectValidBatch,
-  expectInvalid,
-  expectInvalidBatch,
-  benchmarkValidation,
-  measureValidationPerformance,
-  createTestValidator,
-  validateTestData,
-};
-
-export const TestingUtilities = {
-  expectValid,
-  expectValidBatch,
-  expectInvalid,
-  expectInvalidBatch,
-  benchmarkValidation,
-  measureValidationPerformance,
-  createTestValidator,
-  validateTestData,
-};
-
 export type {
   IntegrationConfig,
   ValidationResult as IntegrationValidationResult,
@@ -92,8 +59,6 @@ export type {
   ResponseValidationOptions,
   ValidationHookState,
   UseValidationOptions,
-  TestingConfig,
-  TestAssertionResult,
 } from "./types.js";
 
 export {

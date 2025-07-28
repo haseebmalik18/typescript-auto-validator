@@ -1,19 +1,19 @@
 /**
- * TypeScript Runtime Validator - Webpack Plugin Entry Point
+ * ts-auto-validator - Webpack Plugin Entry Point
  * 
  * CommonJS entry point for webpack users who need require() syntax.
  * 
  * @example
  * ```javascript
  * // webpack.config.js
- * const { TypeScriptRuntimeValidatorPlugin } = require('typescript-runtime-validator/webpack');
+ * const { TypeScriptRuntimeValidatorPlugin } = require('ts-auto-validator/webpack');
  * 
  * module.exports = {
  *   plugins: [
  *     new TypeScriptRuntimeValidatorPlugin({
  *       outputDir: 'src/generated',
  *       enableLogging: true,
- *       generateMagicValidators: true
+ *       generateAutoValidators: true
  *     })
  *   ]
  * };

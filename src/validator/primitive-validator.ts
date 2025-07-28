@@ -119,12 +119,12 @@ export function validateUndefined(value: unknown, path: string): undefined {
   return value;
 }
 
-export function validateAny(value: unknown, path: string): unknown {
+export function validateAny(value: unknown, _path: string): unknown {
   // Any type accepts all values
   return value;
 }
 
-export function validateUnknown(value: unknown, path: string): unknown {
+export function validateUnknown(value: unknown, _path: string): unknown {
   // Unknown type accepts all values but should be handled carefully
   return value;
 }

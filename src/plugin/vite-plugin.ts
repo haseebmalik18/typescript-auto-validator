@@ -1,9 +1,9 @@
 import { Plugin } from "vite";
-import { resolve, dirname, basename, isAbsolute } from "path";
-import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { resolve, isAbsolute } from "path";
 import { InterfaceExtractor } from "../transformer/interface-extractor.js";
 import { ValidatorGenerator } from "../generator/validator-generator.js";
 import { InterfaceInfo } from "../types.js";
+import { fileSystem, FileSystemOperations } from "../utils/filesystem.js";
 
 export interface ValidatorPluginOptions {
   include?: string[];
@@ -12,7 +12,8 @@ export interface ValidatorPluginOptions {
   generateTypeGuards?: boolean;
   watchMode?: boolean;
   enableLogging?: boolean;
-  generateMagicValidators?: boolean;
+  generateAutoValidators?: boolean;
+  fileSystem?: FileSystemOperations;
 }
 
 export default function typescriptValidator(
@@ -22,10 +23,11 @@ export default function typescriptValidator(
     include = ["**/*.ts", "**/*.tsx"],
     exclude = ["node_modules/**", "**/*.test.ts", "**/*.spec.ts"],
     outputDir = "src/generated",
-    generateTypeGuards = true,
+    _generateTypeGuards = true, // Currently unused but kept for future feature
     watchMode = true,
     enableLogging = true,
-    generateMagicValidators = true,
+    generateAutoValidators = true,
+    fileSystem: fs = fileSystem,
   } = options;
 
   const extractor = new InterfaceExtractor();
@@ -72,21 +74,17 @@ export default function typescriptValidator(
       const normalizedPath = normalizeFilePath(filePath);
       const interfaces = extractor.extractFromFile(normalizedPath);
       
-      if (enableLogging !== false && interfaces.length > 0) {
-        console.log(`📝 Found ${interfaces.length} interface(s) in ${basename(filePath)}: ${interfaces.map(i => i.name).join(', ')}`);
-      }
+      // Interfaces found and processed
 
       return interfaces;
     } catch (error) {
-      if (enableLogging !== false) {
-        console.warn(`Failed to generate validators for ${filePath}:`, error);
-      }
+      // Skip files that fail to process
       return null;
     }
   }
 
-  function generateMagicValidatorModule(): void {
-    if (!generateMagicValidators) return;
+  function generateAutoValidatorModule(): void {
+    if (!generateAutoValidators) return;
 
     const allInterfaceList = Array.from(allInterfaces.values());
     if (allInterfaceList.length === 0) {
@@ -94,20 +92,16 @@ export default function typescriptValidator(
     }
 
     try {
-      if (!existsSync(resolvedOutputDir)) {
-        mkdirSync(resolvedOutputDir, { recursive: true });
-      }
+      // Directory creation is handled by filesystem abstraction
 
       const moduleCode = generator.generateValidatorModule(allInterfaceList);
-      const outputPath = resolve(resolvedOutputDir, "magic-validators.ts");
+      const outputPath = resolve(resolvedOutputDir, "auto-validators.ts");
       
-      writeFileSync(outputPath, moduleCode);
+      fs.writeFile(outputPath, moduleCode);
       
-      if (enableLogging !== false) {
-        console.log(`🎯 Generated magic validators for ${allInterfaceList.length} interfaces`);
-      }
+      // Auto validators generated successfully
     } catch (error) {
-      console.error("Failed to generate magic validator module:", error);
+      // Failed to generate auto validator module
     }
   }
 
@@ -120,7 +114,7 @@ export default function typescriptValidator(
 
     buildStart() {
       if (enableLogging !== false) {
-        console.log("🚀 TypeScript Runtime Validator starting...");
+        // ts-auto-validator starting
       }
       
       allInterfaces.clear();
@@ -128,7 +122,7 @@ export default function typescriptValidator(
     },
 
     load(id) {
-      if (generateMagicValidators && id.includes('src/index')) {
+      if (generateAutoValidators && id.includes('src/index')) {
         return null;
       }
       return null;
@@ -151,18 +145,16 @@ export default function typescriptValidator(
         return null;
       } catch (error) {
         if (enableLogging !== false) {
-          console.warn(`Failed to process ${id}:`, error);
+          // Failed to process file
         }
         return null;
       }
     },
 
     generateBundle() {
-      generateMagicValidatorModule();
+      generateAutoValidatorModule();
 
-      if (enableLogging !== false) {
-        console.log(`✅ TypeScript Runtime Validator generation complete!`);
-      }
+      // ts-auto-validator generation complete
     },
 
     handleHotUpdate(ctx) {
@@ -181,16 +173,12 @@ export default function typescriptValidator(
             allInterfaces.set(iface.name, iface);
           });
 
-          generateMagicValidatorModule();
+          generateAutoValidatorModule();
           
-          if (enableLogging !== false) {
-            console.log(`🔥 Hot-reloaded validators for ${interfaces.map(i => i.name).join(', ')}`);
-          }
+          // Hot-reloaded validators
         }
       } catch (error) {
-        if (enableLogging !== false) {
-          console.warn(`Failed to hot-reload validators for ${file}:`, error);
-        }
+        // Failed to hot-reload validators
       }
     },
   };

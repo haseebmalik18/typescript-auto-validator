@@ -57,48 +57,106 @@ class SafeExpressionEvaluator {
    * Safely evaluate simple expressions with whitelisted operations only
    */
   static evaluate(expression: string, value: unknown, context?: any): boolean {
+    // Input validation
+    if (typeof expression !== 'string') {
+      throw new TransformationError('Expression must be a string', 'expression.invalid-type');
+    }
+    
+    if (expression.length > 500) {
+      throw new TransformationError('Expression too long (max 500 characters)', 'expression.too-long');
+    }
+    
+    if (expression.length === 0) {
+      throw new TransformationError('Expression cannot be empty', 'expression.empty');
+    }
+    
     try {
-      // Remove all whitespace for easier parsing
+      // Remove all whitespace for easier parsing and normalize
       const cleanExpr = expression.replace(/\s+/g, " ").trim();
 
       // Check for dangerous patterns
       if (this.containsDangerousPatterns(cleanExpr)) {
-        console.warn(`Blocked potentially dangerous expression: ${expression}`);
-        return false;
+        throw new TransformationError(
+          `Security violation: Blocked potentially dangerous expression: ${expression}`,
+          'expression.security-violation'
+        );
+      }
+
+      // Validate expression contains only whitelisted patterns
+      if (!this.isWhitelistedExpression(cleanExpr)) {
+        throw new TransformationError(
+          `Expression contains non-whitelisted operations: ${expression}`,
+          'expression.non-whitelisted'
+        );
       }
 
       // Parse and evaluate safe expressions
       return this.evaluateSafeExpression(cleanExpr, value, context);
     } catch (error) {
-      console.warn(`Failed to evaluate expression "${expression}":`, error);
-      return false;
+      if (error instanceof TransformationError) {
+        throw error;
+      }
+      throw new TransformationError(
+        `Failed to evaluate expression "${expression}": ${error instanceof Error ? error.message : String(error)}`,
+        'expression.evaluation-error'
+      );
     }
   }
 
   private static containsDangerousPatterns(expression: string): boolean {
     const dangerousPatterns = [
+      // Code execution
       /require\s*\(/,
       /import\s*\(/,
       /eval\s*\(/,
       /Function\s*\(/,
+      /new\s+Function/i,
       /constructor/,
       /prototype/,
       /__proto__/,
+      
+      // System access
       /process\./,
       /global\./,
       /window\./,
       /document\./,
       /console\./,
-      /setTimeout/,
-      /setInterval/,
+      /fs\./,
+      /child_process/,
+      /os\./,
+      /path\./,
+      
+      // Network access
       /fetch\s*\(/,
       /XMLHttpRequest/,
+      /WebSocket/,
+      /EventSource/,
+      
+      // Function manipulation
       /\.call\s*\(/,
       /\.apply\s*\(/,
       /\.bind\s*\(/,
+      
+      // Timing functions
+      /setTimeout/,
+      /setInterval/,
+      /setImmediate/,
+      
+      // Template literals and dynamic code
+      /`.*\$\{/,
+      /with\s*\(/,
       /delete\s+/,
-      /new\s+/,
+      
+      // Error handling that could expose internals
       /throw\s+/,
+      /try\s*\{/,
+      /catch\s*\(/,
+      
+      // Object manipulation
+      /new\s+/,
+      /Object\./,
+      /Reflect\./,
+      /Proxy\s*\(/,
       /try\s*{/,
       /catch\s*\(/,
       /while\s*\(/,
@@ -112,10 +170,47 @@ class SafeExpressionEvaluator {
     return dangerousPatterns.some((pattern) => pattern.test(expression));
   }
 
+  /**
+   * Check if expression contains only whitelisted operations
+   */
+  private static isWhitelistedExpression(expression: string): boolean {
+    // Remove all allowed tokens and see if anything suspicious remains
+    let sanitized = expression;
+    
+    // Remove allowed operators
+    this.ALLOWED_OPERATORS.forEach(op => {
+      const escapedOp = op.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      sanitized = sanitized.replace(new RegExp(escapedOp, 'g'), ' ');
+    });
+    
+    // Remove allowed properties
+    this.ALLOWED_PROPERTIES.forEach(prop => {
+      sanitized = sanitized.replace(new RegExp(`\\b${prop}\\b`, 'g'), ' ');
+    });
+    
+    // Remove allowed methods (with parentheses)
+    this.ALLOWED_METHODS.forEach(method => {
+      sanitized = sanitized.replace(new RegExp(`\\b${method}\\s*\\(`, 'g'), ' ');
+    });
+    
+    // Remove numbers, strings, and value/context references
+    sanitized = sanitized.replace(/\b\d+(\.\d+)?\b/g, ' '); // numbers
+    sanitized = sanitized.replace(/'[^']*'/g, ' '); // single quotes
+    sanitized = sanitized.replace(/"[^"]*"/g, ' '); // double quotes
+    sanitized = sanitized.replace(/\bvalue\b/g, ' '); // value reference
+    sanitized = sanitized.replace(/\bcontext\b/g, ' '); // context reference
+    sanitized = sanitized.replace(/\btypeof\b/g, ' '); // typeof operator
+    
+    // Remove whitespace and check if anything remains
+    sanitized = sanitized.replace(/\s+/g, '').replace(/[()[\].,]/g, '');
+    
+    return sanitized.length === 0;
+  }
+
   private static evaluateSafeExpression(
     expression: string,
     value: unknown,
-    context?: any,
+    _context?: any,
   ): boolean {
     // Handle simple type checks
     if (expression.startsWith("typeof ")) {
@@ -138,8 +233,10 @@ class SafeExpressionEvaluator {
     }
 
     // Default to false for any unrecognized patterns
-    console.warn(`Unrecognized expression pattern: ${expression}`);
-    return false;
+    throw new TransformationError(
+      `Unrecognized expression pattern: ${expression}`,
+      'expression.unrecognized-pattern'
+    );
   }
 
   private static evaluateTypeofExpression(
@@ -901,11 +998,11 @@ export class TransformationEngine {
           return false;
         }
       } catch (error) {
-        // Invalid regex pattern, skip this condition
-        console.warn(
+        // Invalid regex pattern, fail validation
+        throw new TransformationError(
           `Invalid regex pattern in transformation rule: ${condition.valuePattern}`,
+          'condition.invalid-regex'
         );
-        return false;
       }
     }
 
@@ -918,12 +1015,11 @@ export class TransformationEngine {
           context,
         );
       } catch (error) {
-        // Invalid custom condition, fail safe
-        console.warn(
-          `Failed to evaluate custom condition: ${condition.customCondition}`,
-          error,
+        // Invalid custom condition, fail validation
+        throw new TransformationError(
+          `Failed to evaluate custom condition: ${condition.customCondition}. ${error instanceof Error ? error.message : String(error)}`,
+          'condition.evaluation-error'
         );
-        return false;
       }
     }
 

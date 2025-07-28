@@ -1,5 +1,3 @@
-export { InterfaceExtractor } from "./interface-extractor";
-export { TypeAnalyzer } from "./type-analyzer";
-
-// Export ValidatorGenerator as CodeGenerator for backward compatibility
+export { InterfaceExtractor } from "./interface-extractor.js";
+export { TypeAnalyzer } from "./type-analyzer.js";
 export { ValidatorGenerator as CodeGenerator } from "../generator/validator-generator.js";

@@ -1,4 +1,4 @@
-// Next.js Integration for TypeScript Runtime Validator
+// Next.js Integration for ts-auto-validator
 
 export { validateRequest } from './validate-request.js';
 export { validateApiRoute } from './validate-api-route.js';

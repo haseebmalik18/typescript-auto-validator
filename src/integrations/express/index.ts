@@ -1,4 +1,4 @@
-// Express Integration for TypeScript Runtime Validator
+// Express Integration for ts-auto-validator
 
 export { 
   createValidationMiddleware,

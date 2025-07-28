@@ -183,7 +183,7 @@ export function log(
   } else {
     // Default console logging
     const timestamp = new Date().toISOString();
-    const prefix = `[${timestamp}] [typescript-runtime-validator] [${level.toUpperCase()}]`;
+    const prefix = `[${timestamp}] [ts-auto-validator] [${level.toUpperCase()}]`;
     
     switch (level) {
       case 'info':
@@ -318,8 +318,8 @@ export function createMockRequest(data: unknown = {}): any {
     headers: {},
     method: 'POST',
     url: '/test',
-    get: (header: string) => undefined,
-    header: (header: string) => undefined,
+    get: (_header: string) => undefined,
+    header: (_header: string) => undefined,
   };
 }
 

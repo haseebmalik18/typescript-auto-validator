@@ -7,7 +7,7 @@ export {
   validateBatch,
   getAvailableValidators,
   hasValidator,
-} from "./validator/magic-validator.js";
+} from "./validator/auto-validator.js";
 
 export * from "./types.js";
 

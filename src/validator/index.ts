@@ -65,7 +65,7 @@ export {
   registerTransformer,
 } from "./composite-functions.js";
 
-// Export magic validator functions (NEW!)
+// Export auto validator functions (NEW!)
 export {
   validate,
   validateAs,
@@ -76,7 +76,7 @@ export {
   getAvailableValidators,
   hasValidator,
   registerValidator,
-} from "./magic-validator.js";
+} from "./auto-validator.js";
 
 // Export additional transformation types
 export { TransformationError } from "../types.js";

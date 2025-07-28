@@ -1,29 +1,20 @@
 import { ValidatorConfig } from "../types.js";
 import { ValidationError } from "./error-handler.js";
 
-/**
- * Registry of generated validators (populated at build time)
- */
 const VALIDATOR_REGISTRY = new Map<string, (data: unknown, config?: ValidatorConfig) => any>();
 
-/**
- * Magic validate function that uses build-time generated validators
- */
-export function validate<T>(data: unknown, config?: ValidatorConfig): T {
-  const typeName = getTypeName<T>();
+// Enhanced validation functions that require explicit type names
+export function validate<T>(typeName: string, data: unknown, config?: ValidatorConfig): T {
   return validateAs<T>(typeName, data, config);
 }
 
-/**
- * Validate data against a specific interface by name
- */
 export function validateAs<T>(typeName: string, data: unknown, config?: ValidatorConfig): T {
   const validator = VALIDATOR_REGISTRY.get(typeName);
   
   if (!validator) {
     throw new ValidationError(
       `No validator found for interface "${typeName}". ` +
-      `Make sure it's exported and processed by the TypeScript Runtime Validator build plugin.\n\n` +
+      `Make sure it's exported and processed by the ts-auto-validator build plugin.\n\n` +
       `Available validators: ${getAvailableValidators().join(', ') || 'none'}`,
       'validation.setup'
     );
@@ -49,27 +40,22 @@ export function validateAs<T>(typeName: string, data: unknown, config?: Validato
   }
 }
 
-/**
- * Check if data is valid without throwing errors
- */
-export function isValid<T>(data: unknown, config?: ValidatorConfig): data is T {
+export function isValid<T>(typeName: string, data: unknown, config?: ValidatorConfig): data is T {
   try {
-    validate<T>(data, config);
+    validate<T>(typeName, data, config);
     return true;
   } catch {
     return false;
   }
 }
 
-/**
- * Validate data and return a result object instead of throwing
- */
 export function tryValidate<T>(
+  typeName: string,
   data: unknown, 
   config?: ValidatorConfig
 ): { success: true; data: T } | { success: false; error: ValidationError } {
   try {
-    const validData = validate<T>(data, config);
+    const validData = validate<T>(typeName, data, config);
     return { success: true, data: validData };
   } catch (error) {
     const validationError = error instanceof ValidationError 
@@ -83,16 +69,13 @@ export function tryValidate<T>(
   }
 }
 
-/**
- * Create a reusable validator function for a specific type
- */
-export function createValidator<T>(config?: ValidatorConfig): (data: unknown) => T {
-  const typeName = getTypeName<T>();
+export function createValidator<T>(typeName: string, config?: ValidatorConfig): (data: unknown) => T {
   const validator = VALIDATOR_REGISTRY.get(typeName);
   
   if (!validator) {
     throw new ValidationError(
-      `No validator found for interface "${typeName}"`,
+      `No validator found for interface "${typeName}". ` +
+      `Available validators: ${getAvailableValidators().join(', ') || 'none'}`,
       'validation.setup'
     );
   }
@@ -112,59 +95,56 @@ export function hasValidator(typeName: string): boolean {
   return VALIDATOR_REGISTRY.has(typeName);
 }
 
-/**
- * Clear all registered validators (useful for testing)
- * 
- * @internal
- */
 export function clearValidators(): void {
   VALIDATOR_REGISTRY.clear();
 }
 
-/**
- * Extract type name from TypeScript generic type parameter
- * 
- * This uses a combination of techniques to reliably extract the type name
- * from the call site. This is the "magic" that makes the API so simple.
- * 
- * @internal
- */
-function getTypeName<T>(): string {
-  const error = new Error();
-  const stack = error.stack || '';
+// Type-safe validator creation with explicit interface names
+export function createTypedValidator<T>(): {
+  validate: (data: unknown, config?: ValidatorConfig) => T;
+  isValid: (data: unknown, config?: ValidatorConfig) => data is T;
+  tryValidate: (data: unknown, config?: ValidatorConfig) => { success: true; data: T } | { success: false; error: ValidationError };
+} {
+  const registeredTypeName: string | null = null;
   
-  const patterns = [
-    /validate<(\w+)>/,
-    /createValidator<(\w+)>/,
-    /isValid<(\w+)>/,
-    /tryValidate<(\w+)>/
-  ];
-  
-  for (const pattern of patterns) {
-    const match = stack.match(pattern);
-    if (match && match[1]) {
-      return match[1];
+  return {
+    validate: (data: unknown, config?: ValidatorConfig): T => {
+      if (!registeredTypeName) {
+        throw new ValidationError(
+          'Validator not properly registered. Use registerValidator() first or use validate() with explicit type name.',
+          'validation.setup'
+        );
+      }
+      return validateAs<T>(registeredTypeName, data, config);
+    },
+    
+    isValid: (data: unknown, config?: ValidatorConfig): data is T => {
+      if (!registeredTypeName) return false;
+      return isValid<T>(registeredTypeName, data, config);
+    },
+    
+    tryValidate: (data: unknown, config?: ValidatorConfig) => {
+      if (!registeredTypeName) {
+        return {
+          success: false,
+          error: new ValidationError(
+            'Validator not properly registered. Use registerValidator() first.',
+            'validation.setup'
+          )
+        };
+      }
+      return tryValidate<T>(registeredTypeName, data, config);
     }
-  }
-  
-  throw new ValidationError(
-    'Could not determine the TypeScript interface name. ' +
-    'Make sure you\'re using the generic syntax like validate<YourInterface>(data). ' +
-    'If the interface name extraction fails, you can use validateAs("InterfaceName", data) instead.',
-    'validation.type-extraction'
-  );
+  };
 }
 
-/**
- * Batch validation for multiple values of the same type
- */
-export function validateBatch<T>(items: unknown[], config?: ValidatorConfig): T[] {
-  const typeName = getTypeName<T>();
+export function validateBatch<T>(typeName: string, items: unknown[], config?: ValidatorConfig): T[] {
   const validator = VALIDATOR_REGISTRY.get(typeName);
   
   if (!validator) {
     throw new ValidationError(
-      `No validator found for interface "${typeName}"`,
+      `No validator found for interface "${typeName}". ` +
+      `Available validators: ${getAvailableValidators().join(', ') || 'none'}`,
       'validation.setup'
     );
   }
@@ -186,4 +166,4 @@ export function validateBatch<T>(items: unknown[], config?: ValidatorConfig): T[
       throw error;
     }
   });
-} 
+}

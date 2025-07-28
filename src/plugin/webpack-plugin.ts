@@ -1,8 +1,8 @@
-import { resolve, dirname, basename, isAbsolute, relative, join } from "path";
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
+import { resolve, basename, isAbsolute, relative } from "path";
 import { minimatch } from "minimatch";
 import { InterfaceExtractor } from "../transformer/interface-extractor.js";
 import { ValidatorGenerator } from "../generator/validator-generator.js";
+import { fileSystem, FileSystemOperations } from "../utils/filesystem.js";
 import { InterfaceInfo } from "../types.js";
 
 /**
@@ -31,7 +31,7 @@ class RawSource {
 }
 
 /**
- * Configuration options for the TypeScript Runtime Validator Webpack plugin
+ * Configuration options for the ts-auto-validator Webpack plugin
  */
 export interface WebpackValidatorPluginOptions {
   /**
@@ -71,10 +71,15 @@ export interface WebpackValidatorPluginOptions {
   enableLogging?: boolean;
   
   /**
-   * Generate magic validators that auto-register
+   * Generate auto validators that auto-register
    * @default true
    */
-  generateMagicValidators?: boolean;
+  generateAutoValidators?: boolean;
+  
+  /**
+   * File system operations (for testing/mocking)
+   */
+  fileSystem?: FileSystemOperations;
   
   /**
    * Emit validators as separate files instead of inline
@@ -123,10 +128,10 @@ interface ProcessedFile {
 }
 
 /**
- * TypeScript Runtime Validator Webpack Plugin
+ * ts-auto-validator Webpack Plugin
  */
 export class TypeScriptRuntimeValidatorPlugin {
-  private readonly options: Required<WebpackValidatorPluginOptions>;
+  private readonly options: Required<Omit<WebpackValidatorPluginOptions, 'fileSystem'>> & { fileSystem: FileSystemOperations };
   private readonly extractor: InterfaceExtractor;
   private readonly generator: ValidatorGenerator;
   private readonly processedFiles = new Map<string, ProcessedFile>();
@@ -146,9 +151,10 @@ export class TypeScriptRuntimeValidatorPlugin {
       generateTypeGuards: true,
       watchMode: true,
       enableLogging: true,
-      generateMagicValidators: true,
+      generateAutoValidators: true,
       emitFiles: true,
       enableCaching: true,
+      fileSystem: fileSystem,
       transformerOptions: {
         sourceMap: true,
         minify: false,
@@ -163,7 +169,7 @@ export class TypeScriptRuntimeValidatorPlugin {
     this.resolvedOutputDir = this.options.outputDir;
     
     if (this.options.enableLogging) {
-      this.log("info", "TypeScript Runtime Validator Plugin initialized", this.options);
+      this.log("info", "ts-auto-validator Plugin initialized", this.options);
     }
   }
 
@@ -182,7 +188,7 @@ export class TypeScriptRuntimeValidatorPlugin {
     // Initialize plugin
     if (compiler.hooks?.initialize) {
       compiler.hooks.initialize.tap(pluginName, () => {
-        this.log("info", "🚀 TypeScript Runtime Validator starting...");
+        this.log("info", "🚀 ts-auto-validator starting...");
         this.clearCaches();
       });
     }
@@ -220,7 +226,7 @@ export class TypeScriptRuntimeValidatorPlugin {
               .then(() => callback())
               .catch((error) => {
                 if (compilation.errors) {
-                  compilation.errors.push(new WebpackValidationError(`TypeScript Runtime Validator: ${error.message}`));
+                  compilation.errors.push(new WebpackValidationError(`ts-auto-validator: ${error.message}`));
                 }
                 callback();
               });
@@ -242,7 +248,7 @@ export class TypeScriptRuntimeValidatorPlugin {
     if (compiler.hooks?.done) {
       compiler.hooks.done.tap(pluginName, (stats: any) => {
         if (!stats.hasErrors?.() || !stats.compilation?.errors?.length) {
-          this.log("info", `✅ TypeScript Runtime Validator generation complete! Processed ${this.allInterfaces.size} interfaces`);
+          this.log("info", `✅ ts-auto-validator generation complete! Processed ${this.allInterfaces.size} interfaces`);
         }
       });
     }
@@ -269,7 +275,7 @@ export class TypeScriptRuntimeValidatorPlugin {
       
       if (compilation.warnings) {
         compilation.warnings.push(new WebpackValidationError(
-          `TypeScript Runtime Validator: Failed to process ${filePath}: ${message}`
+          `ts-auto-validator: Failed to process ${filePath}: ${message}`
         ));
       }
     }
@@ -328,7 +334,7 @@ export class TypeScriptRuntimeValidatorPlugin {
     }
 
     try {
-      this.generateMagicValidatorModule();
+      this.generateAutoValidatorModule();
       
       if (this.options.generateTypeGuards) {
         this.generateTypeGuards();
@@ -342,10 +348,10 @@ export class TypeScriptRuntimeValidatorPlugin {
   }
 
   /**
-   * Generate the magic validator module
+   * Generate the auto validator module
    */
-  private generateMagicValidatorModule(): void {
-    if (!this.options.generateMagicValidators) {
+  private generateAutoValidatorModule(): void {
+    if (!this.options.generateAutoValidators) {
       return;
     }
 
@@ -358,13 +364,13 @@ export class TypeScriptRuntimeValidatorPlugin {
       this.ensureOutputDirectory();
 
       const moduleCode = this.generator.generateValidatorModule(allInterfaceList);
-      const outputPath = resolve(this.resolvedOutputDir, "magic-validators.ts");
+      const outputPath = resolve(this.resolvedOutputDir, "auto-validators.ts");
       
       this.writeGeneratedFile(outputPath, moduleCode);
       
-      this.log("info", `🎯 Generated magic validators for ${allInterfaceList.length} interfaces`);
+      this.log("info", `🎯 Generated auto validators for ${allInterfaceList.length} interfaces`);
     } catch (error) {
-      throw new Error(`Magic validator generation failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Auto validator generation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -426,7 +432,7 @@ export class TypeScriptRuntimeValidatorPlugin {
     // Reprocess the file
     try {
       this.processTypeScriptFile(normalizedPath, this.compilation!);
-      this.generateMagicValidatorModule();
+      this.generateAutoValidatorModule();
       
       this.log("info", "🔄 Validators regenerated");
     } catch (error) {
@@ -495,7 +501,7 @@ export class TypeScriptRuntimeValidatorPlugin {
 
   private getFileHash(filePath: string): string {
     try {
-      const content = readFileSync(filePath, 'utf-8');
+      const content = this.options.fileSystem.readFile(filePath);
       // Simple hash function
       let hash = 0;
       for (let i = 0; i < content.length; i++) {
@@ -510,14 +516,12 @@ export class TypeScriptRuntimeValidatorPlugin {
   }
 
   private ensureOutputDirectory(): void {
-    if (!existsSync(this.resolvedOutputDir)) {
-      mkdirSync(this.resolvedOutputDir, { recursive: true });
-    }
+    this.options.fileSystem.ensureDir(this.resolvedOutputDir);
   }
 
   private writeGeneratedFile(filePath: string, content: string): void {
     try {
-      writeFileSync(filePath, content, 'utf-8');
+      this.options.fileSystem.writeFile(filePath, content);
     } catch (error) {
       throw new Error(`Failed to write file ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -526,16 +530,16 @@ export class TypeScriptRuntimeValidatorPlugin {
   private getGeneratedFiles(): Map<string, string> {
     const files = new Map<string, string>();
     
-    if (!existsSync(this.resolvedOutputDir)) {
+    if (!this.options.fileSystem.exists(this.resolvedOutputDir)) {
       return files;
     }
 
     try {
-      // Add magic validators
-      const magicValidatorsPath = resolve(this.resolvedOutputDir, "magic-validators.ts");
-      if (existsSync(magicValidatorsPath)) {
-        const content = readFileSync(magicValidatorsPath, 'utf-8');
-        const relativePath = relative(this.configRoot, magicValidatorsPath);
+      // Add auto validators
+      const autoValidatorsPath = resolve(this.resolvedOutputDir, "auto-validators.ts");
+      if (this.options.fileSystem.exists(autoValidatorsPath)) {
+        const content = this.options.fileSystem.readFile(autoValidatorsPath);
+        const relativePath = relative(this.configRoot, autoValidatorsPath);
         files.set(relativePath, content);
       }
 
@@ -543,8 +547,8 @@ export class TypeScriptRuntimeValidatorPlugin {
       if (this.options.generateTypeGuards) {
         this.allInterfaces.forEach((interfaceInfo) => {
           const guardPath = resolve(this.resolvedOutputDir, `${interfaceInfo.name}.guard.ts`);
-          if (existsSync(guardPath)) {
-            const content = readFileSync(guardPath, 'utf-8');
+          if (this.options.fileSystem.exists(guardPath)) {
+            const content = this.options.fileSystem.readFile(guardPath);
             const relativePath = relative(this.configRoot, guardPath);
             files.set(relativePath, content);
           }
@@ -569,7 +573,7 @@ export class TypeScriptRuntimeValidatorPlugin {
     }
 
     const timestamp = new Date().toISOString();
-    const prefix = `[${timestamp}] [TypeScript Runtime Validator] [${level.toUpperCase()}]`;
+    const prefix = `[${timestamp}] [ts-auto-validator] [${level.toUpperCase()}]`;
     
     switch (level) {
       case "info":

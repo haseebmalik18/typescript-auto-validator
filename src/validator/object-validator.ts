@@ -45,7 +45,7 @@ export function validateObjectWithProperties<T>(
 
     if (obj[propName] !== undefined) {
       result[propName] = validator(obj[propName], propPath);
-    } else if (strictNullChecks && obj.hasOwnProperty(propName) && obj[propName] === null) {
+    } else if (strictNullChecks && Object.prototype.hasOwnProperty.call(obj, propName) && obj[propName] === null) {
       // Handle explicit null values when strict null checks are enabled
       result[propName] = validator(obj[propName], propPath);
     }

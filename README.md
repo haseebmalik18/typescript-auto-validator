@@ -1,8 +1,8 @@
-# TypeScript Runtime Validator
+# ts-auto-validator
 
 🚀 **Advanced TypeScript runtime validation with zero-config type safety, framework integrations, and enterprise-grade transformation rules**
 
-[![npm version](https://badge.fury.io/js/typescript-runtime-validator.svg)](https://www.npmjs.com/package/typescript-runtime-validator)
+[![npm version](https://badge.fury.io/js/ts-auto-validator.svg)](https://www.npmjs.com/package/ts-auto-validator)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D16.0.0-brightgreen.svg)](https://nodejs.org/)
 
@@ -20,7 +20,7 @@ Transform your TypeScript interfaces into runtime validators automatically. No s
 ## 📦 Installation
 
 ```bash
-npm install typescript-runtime-validator
+npm install ts-auto-validator
 ```
 
 ## 🚀 Quick Start
@@ -41,7 +41,7 @@ export interface User {
 ### 2. Generate Validators
 
 ```typescript
-import { createValidator } from 'typescript-runtime-validator';
+import { createValidator } from 'ts-auto-validator';
 
 // Automatically creates validator from your interface
 const validateUser = createValidator<User>();
@@ -66,7 +66,7 @@ try {
 
 ```typescript
 import express from 'express';
-import { validateRequest } from 'typescript-runtime-validator/express';
+import { validateRequest } from 'ts-auto-validator/express';
 
 interface CreateUserRequest {
   name: string;
@@ -89,7 +89,7 @@ app.post('/users',
 ### Next.js API Routes
 
 ```typescript
-import { withValidation } from 'typescript-runtime-validator/nextjs';
+import { withValidation } from 'ts-auto-validator/nextjs';
 
 interface UserRequest {
   name: string;
@@ -108,7 +108,7 @@ export default withValidation<UserRequest>({
 ### React Form Validation
 
 ```typescript
-import { useValidation } from 'typescript-runtime-validator/react';
+import { useValidation } from 'ts-auto-validator/react';
 
 interface FormData {
   username: string;
@@ -192,7 +192,7 @@ const validator = createValidator<User>({
 
 ```javascript
 // webpack.config.js
-const { TypeScriptRuntimeValidatorPlugin } = require('typescript-runtime-validator/webpack');
+const { TypeScriptRuntimeValidatorPlugin } = require('ts-auto-validator/webpack');
 
 module.exports = {
   plugins: [
@@ -208,7 +208,7 @@ module.exports = {
 
 ```javascript
 // vite.config.js
-import { typeScriptRuntimeValidator } from 'typescript-runtime-validator/vite';
+import { typeScriptRuntimeValidator } from 'ts-auto-validator/vite';
 
 export default {
   plugins: [
@@ -285,3 +285,4 @@ MIT License - see the [LICENSE](LICENSE) file for details.
 - **NPM**: [Package on NPM] Coming soon.
 
 ---
+ 

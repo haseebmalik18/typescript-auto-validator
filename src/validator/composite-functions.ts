@@ -1,6 +1,5 @@
 import { InterfaceInfo, ValidatorConfig, TypeInfo } from "../types.js";
 import { ValidatorFactory } from "./validator-factory.js";
-import { TransformationEngine } from "./transformation-engine.js";
 
 // Global validator configuration
 let globalConfig: ValidatorConfig = {};

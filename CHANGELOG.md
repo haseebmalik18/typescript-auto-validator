@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2025-01-XX
 
 ### Added
-- Initial release of TypeScript Runtime Validator
+- Initial release of ts-auto-validator
 - Zero-configuration TypeScript interface validation
-- Magic validation functions with automatic type detection
+- Auto validation functions with automatic type detection
 - Advanced transformation engine with built-in type coercion
 - Framework integrations for Express.js, Next.js, and React
 - Build plugins for Vite and Webpack
@@ -44,5 +44,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hot module replacement support
 - TypeScript declaration generation
 
-[Unreleased]: https://github.com/haseebmalik18/typescript-runtime-validator/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/haseebmalik18/typescript-runtime-validator/releases/tag/v0.1.0
+[Unreleased]: https://github.com/haseebmalik18/ts-auto-validator/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/haseebmalik18/ts-auto-validator/releases/tag/v0.1.0

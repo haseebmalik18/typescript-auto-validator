@@ -1,4 +1,4 @@
-import { TransformerDefinition, TransformerRegistry } from "../types.js";
+import { TransformerRegistry } from "../types.js";
 
 /**
  * Essential transformers for basic type coercion
