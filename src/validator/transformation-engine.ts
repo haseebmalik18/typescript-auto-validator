@@ -558,7 +558,7 @@ class SafeTransformationFunctions {
 
     [
       "throwError",
-      (value) => {
+      (_value) => {
         throw new Error("Custom error");
       },
     ],

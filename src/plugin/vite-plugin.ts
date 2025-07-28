@@ -23,7 +23,6 @@ export default function typescriptValidator(
     include = ["**/*.ts", "**/*.tsx"],
     exclude = ["node_modules/**", "**/*.test.ts", "**/*.spec.ts"],
     outputDir = "src/generated",
-    _generateTypeGuards = true, // Currently unused but kept for future feature
     watchMode = true,
     enableLogging = true,
     generateAutoValidators = true,
