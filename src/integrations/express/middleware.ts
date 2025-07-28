@@ -22,13 +22,13 @@ export interface ExpressValidationConfig extends IntegrationConfig {
   includeErrorDetails?: boolean;
 
   /** Custom error response formatter */
-  formatError?: (error: ValidationError, req: Request) => any;
+  formatError?: (error: ValidationError, req: Request) => object;
 
   /** Whether to continue on validation errors (for logging/analytics) */
   continueOnError?: boolean;
 
   /** Custom success response formatter */
-  formatSuccess?: (data: any, req: Request) => any;
+  formatSuccess?: <T>(data: T, req: Request) => T | unknown;
 
   /** Performance monitoring */
   trackPerformance?: boolean;
@@ -40,7 +40,7 @@ export interface ExpressValidationConfig extends IntegrationConfig {
 /**
  * Extended Request interface with validated data
  */
-export interface ValidatedRequest<TBody = any, TQuery = any, TParams = any>
+export interface ValidatedRequest<TBody = unknown, TQuery = unknown, TParams = unknown>
   extends Request {
   validatedBody?: TBody;
   validatedQuery?: TQuery;
@@ -118,7 +118,7 @@ export class ExpressValidationMiddleware {
   /**
    * Create comprehensive middleware to validate multiple request parts
    */
-  validateRequest<TBody = any, TQuery = any, TParams = any>(
+  validateRequest<TBody = unknown, TQuery = unknown, TParams = unknown>(
     schemas: {
       body?: InterfaceInfo;
       query?: InterfaceInfo;
@@ -212,7 +212,7 @@ export class ExpressValidationMiddleware {
       const originalJson = res.json.bind(res);
 
       // Override res.send
-      res.send = function (body: any) {
+      res.send = function (body: unknown) {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           try {
             const validationContext = createValidationContext(
@@ -253,7 +253,7 @@ export class ExpressValidationMiddleware {
       };
 
       // Override res.json
-      res.json = function (obj: any) {
+      res.json = function (obj: unknown) {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           try {
             const validationContext = createValidationContext(
@@ -302,7 +302,7 @@ export class ExpressValidationMiddleware {
   errorHandler(config: Partial<ExpressValidationConfig> = {}) {
     const mergedConfig = { ...this.defaultConfig, ...config };
 
-    return (error: any, req: Request, res: Response, next: NextFunction) => {
+    return (error: Error, req: Request, res: Response, next: NextFunction) => {
       if (error instanceof ValidationError) {
         const statusCode = mergedConfig.errorStatusCode || 400;
         const errorResponse = this.formatErrorResponse(
@@ -390,13 +390,13 @@ export class ExpressValidationMiddleware {
     };
   }
 
-  private async validateRequestPart(
+  private async validateRequestPart<T = unknown>(
     data: unknown,
     schema: InterfaceInfo,
     part: string,
     req: Request,
     config: ExpressValidationConfig,
-  ): Promise<any> {
+  ): Promise<T> {
     const validationContext = createValidationContext(
       `express.${part}`,
       req,
@@ -420,7 +420,7 @@ export class ExpressValidationMiddleware {
   }
 
   private handleValidationError(
-    error: any,
+    error: unknown,
     req: Request,
     res: Response,
     next: NextFunction,
@@ -529,7 +529,7 @@ export function validateParams<T>(
 /**
  * Validate multiple request parts
  */
-export function validateRequest<TBody = any, TQuery = any, TParams = any>(
+export function validateRequest<TBody = unknown, TQuery = unknown, TParams = unknown>(
   schemas: {
     body?: InterfaceInfo;
     query?: InterfaceInfo;
