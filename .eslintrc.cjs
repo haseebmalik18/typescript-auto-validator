@@ -10,6 +10,7 @@ module.exports = {
     "eslint:recommended", 
     "plugin:@typescript-eslint/recommended"
   ],
+  ignorePatterns: ["webpack.js"],
   rules: {
     "@typescript-eslint/no-unused-vars": ["error", { 
       argsIgnorePattern: "^_",
