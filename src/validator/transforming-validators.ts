@@ -353,7 +353,7 @@ function validateTransformedValue<T>(
   value: unknown,
   typeInfo: TypeInfo,
   path: string,
-  config?: ValidatorConfig,
+  _config?: ValidatorConfig,
 ): T {
   // Basic type validation - this would integrate with existing validators
   switch (typeInfo.kind) {

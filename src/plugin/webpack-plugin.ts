@@ -188,7 +188,7 @@ export class TypeScriptRuntimeValidatorPlugin {
     // Initialize plugin
     if (compiler.hooks?.initialize) {
       compiler.hooks.initialize.tap(pluginName, () => {
-        this.log("info", "🚀 ts-auto-validator starting...");
+        this.log("info", "ts-auto-validator starting...");
         this.clearCaches();
       });
     }
@@ -248,7 +248,7 @@ export class TypeScriptRuntimeValidatorPlugin {
     if (compiler.hooks?.done) {
       compiler.hooks.done.tap(pluginName, (stats: any) => {
         if (!stats.hasErrors?.() || !stats.compilation?.errors?.length) {
-          this.log("info", `✅ ts-auto-validator generation complete! Processed ${this.allInterfaces.size} interfaces`);
+          this.log("info", `ts-auto-validator generation complete! Processed ${this.allInterfaces.size} interfaces`);
         }
       });
     }
@@ -284,7 +284,7 @@ export class TypeScriptRuntimeValidatorPlugin {
   /**
    * Process a TypeScript file and extract interfaces
    */
-  private processTypeScriptFile(filePath: string, compilation: any): void {
+  private processTypeScriptFile(filePath: string, _compilation: any): void {
     const normalizedPath = this.normalizeFilePath(filePath);
     
     // Check cache if enabled
@@ -317,7 +317,7 @@ export class TypeScriptRuntimeValidatorPlugin {
           this.allInterfaces.set(iface.name, iface);
         });
 
-        this.log("info", `📝 Found ${interfaces.length} interface(s) in ${basename(filePath)}: ${interfaces.map(i => i.name).join(', ')}`);
+        this.log("info", `Found ${interfaces.length} interface(s) in ${basename(filePath)}: ${interfaces.map(i => i.name).join(', ')}`);
       }
     } catch (error) {
       throw new Error(`Interface extraction failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -368,7 +368,7 @@ export class TypeScriptRuntimeValidatorPlugin {
       
       this.writeGeneratedFile(outputPath, moduleCode);
       
-      this.log("info", `🎯 Generated auto validators for ${allInterfaceList.length} interfaces`);
+      this.log("info", `Generated auto validators for ${allInterfaceList.length} interfaces`);
     } catch (error) {
       throw new Error(`Auto validator generation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -420,8 +420,8 @@ export class TypeScriptRuntimeValidatorPlugin {
   /**
    * Handle file changes in watch mode
    */
-  private handleFileChange(filename: string, changeTime: number): void {
-    this.log("info", `🔥 File changed: ${filename}`);
+  private handleFileChange(filename: string, _changeTime: number): void {
+    this.log("info", `File changed: ${filename}`);
     
     const normalizedPath = this.normalizeFilePath(filename);
     
@@ -434,7 +434,7 @@ export class TypeScriptRuntimeValidatorPlugin {
       this.processTypeScriptFile(normalizedPath, this.compilation!);
       this.generateAutoValidatorModule();
       
-      this.log("info", "🔄 Validators regenerated");
+      this.log("info", "Validators regenerated");
     } catch (error) {
       this.log("error", `Hot reload failed: ${error instanceof Error ? error.message : String(error)}`);
     }

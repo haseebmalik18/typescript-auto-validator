@@ -145,7 +145,7 @@ export class ExpressValidationMiddleware {
 
         // Validate body
         if (schemas.body && mergedConfig.validateBody) {
-          const bodyResult = await this.validateRequestPart(
+          const bodyResult = await this.validateRequestPart<TBody>(
             req.body,
             schemas.body,
             "body",
@@ -158,7 +158,7 @@ export class ExpressValidationMiddleware {
 
         // Validate query
         if (schemas.query && mergedConfig.validateQuery) {
-          const queryResult = await this.validateRequestPart(
+          const queryResult = await this.validateRequestPart<TQuery>(
             req.query,
             schemas.query,
             "query",
@@ -171,7 +171,7 @@ export class ExpressValidationMiddleware {
 
         // Validate params
         if (schemas.params && mergedConfig.validateParams) {
-          const paramsResult = await this.validateRequestPart(
+          const paramsResult = await this.validateRequestPart<TParams>(
             req.params,
             schemas.params,
             "params",
@@ -357,7 +357,7 @@ export class ExpressValidationMiddleware {
           validationPath = "body";
         }
 
-        const result = await this.validateRequestPart(
+        const result = await this.validateRequestPart<T>(
           dataToValidate,
           schema,
           validationPath,
@@ -416,7 +416,7 @@ export class ExpressValidationMiddleware {
       throw result.error;
     }
 
-    return result.data;
+    return result.data as T;
   }
 
   private handleValidationError(
