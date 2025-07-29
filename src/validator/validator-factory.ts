@@ -1,4 +1,10 @@
-import { TypeInfo, PropertyInfo, InterfaceInfo, ValidatorConfig } from "../types.js";
+import {
+  TypeInfo,
+  PropertyInfo,
+  InterfaceInfo,
+  ValidatorConfig,
+  TransformerDefinition,
+} from '../types.js';
 import {
   validateString,
   validateNumber,
@@ -10,25 +16,29 @@ import {
   validateAny,
   validateUnknown,
   validateNever,
-} from "./primitive-validator.js";
-import { 
-  validateObject, 
-  validateProperty, 
+} from './primitive-validator.js';
+import {
+  validateObject,
+  validateProperty,
   validateObjectWithProperties,
   validateObjectWithPropertyInfo,
   validatePartialObject,
-} from "./object-validator.js";
-import { validateArrayElements, validateTuple } from "./array-validator.js";
-import { validateUnion, validateLiteralUnion, validateDiscriminatedUnion } from "./union-validator.js";
-import { validateIntersection, validateBrandedType } from "./intersection-validator.js";
-import { ValidationError } from "./error-handler.js";
-import { TransformationEngine, getBuiltInTransformers } from "./transformation-engine.js";
-import { getAllAdvancedTransformers } from "./advanced-transformers.js";
+} from './object-validator.js';
+import { validateArrayElements, validateTuple } from './array-validator.js';
+import {
+  validateUnion,
+  validateLiteralUnion,
+  validateDiscriminatedUnion,
+} from './union-validator.js';
+import { validateIntersection, validateBrandedType } from './intersection-validator.js';
+import { ValidationError } from './error-handler.js';
+import { TransformationEngine, getBuiltInTransformers } from './transformation-engine.js';
+import { getAllAdvancedTransformers } from './advanced-transformers.js';
 
 export type ValidatorFunction<T = unknown> = (
   value: unknown,
   path?: string,
-  config?: ValidatorConfig,
+  config?: ValidatorConfig
 ) => T;
 
 export class ValidatorFactory {
@@ -39,16 +49,16 @@ export class ValidatorFactory {
 
   constructor(config: ValidatorConfig = {}) {
     this.globalConfig = config;
-    
+
     const allTransformers = {
       ...getBuiltInTransformers(),
       ...getAllAdvancedTransformers(),
       ...(config.transformers || {}),
     };
-    
+
     this.transformationEngine = new TransformationEngine(
       allTransformers,
-      config.transformationStrategy,
+      config.transformationStrategy
     );
   }
 
@@ -69,7 +79,7 @@ export class ValidatorFactory {
   /**
    * Register a custom transformer
    */
-  registerTransformer(name: string, transformer: any): void {
+  registerTransformer(name: string, transformer: TransformerDefinition): void {
     this.transformationEngine.registerTransformer(name, transformer);
   }
 
@@ -78,7 +88,7 @@ export class ValidatorFactory {
    */
   updateConfig(config: ValidatorConfig): void {
     this.globalConfig = { ...this.globalConfig, ...config };
-    
+
     // Update transformation engine if transformers changed
     if (config.transformers || config.transformationStrategy) {
       const allTransformers = {
@@ -86,24 +96,21 @@ export class ValidatorFactory {
         ...getAllAdvancedTransformers(),
         ...this.globalConfig.transformers,
       };
-      
+
       this.transformationEngine = new TransformationEngine(
         allTransformers,
-        this.globalConfig.transformationStrategy,
+        this.globalConfig.transformationStrategy
       );
     }
   }
 
   private isTypeAlias(interfaceInfo: InterfaceInfo): boolean {
-    return (
-      interfaceInfo.properties.length === 1 &&
-      interfaceInfo.properties[0].name === "value"
-    );
+    return interfaceInfo.properties.length === 1 && interfaceInfo.properties[0].name === 'value';
   }
 
   createValidator<T>(interfaceInfo: InterfaceInfo, config?: ValidatorConfig): ValidatorFunction<T> {
     this.registerInterface(interfaceInfo);
-    
+
     const mergedConfig = { ...this.globalConfig, ...config };
     const cacheKey = `${interfaceInfo.name}-${JSON.stringify(mergedConfig)}`;
 
@@ -120,7 +127,7 @@ export class ValidatorFactory {
   createValidatorWithRegistry<T>(
     targetInterface: InterfaceInfo,
     allInterfaces: InterfaceInfo[],
-    config?: ValidatorConfig,
+    config?: ValidatorConfig
   ): ValidatorFunction<T> {
     this.registerInterfaces(allInterfaces);
     return this.createValidator<T>(targetInterface, config);
@@ -128,36 +135,44 @@ export class ValidatorFactory {
 
   private createValidatorForInterface<T>(
     interfaceInfo: InterfaceInfo,
-    config: ValidatorConfig,
+    config: ValidatorConfig
   ): ValidatorFunction<T> {
     if (this.isTypeAlias(interfaceInfo)) {
       const valueProperty = interfaceInfo.properties[0];
-      return (value: unknown, path: string = interfaceInfo.name, validatorConfig?: ValidatorConfig): T => {
+      return (
+        value: unknown,
+        path: string = interfaceInfo.name,
+        validatorConfig?: ValidatorConfig
+      ): T => {
         const mergedConfig = { ...config, ...validatorConfig };
         return this.validateTypeInfo(value, valueProperty.type, path, mergedConfig) as T;
       };
     }
 
-    return (value: unknown, path: string = interfaceInfo.name, validatorConfig?: ValidatorConfig): T => {
+    return (
+      value: unknown,
+      path: string = interfaceInfo.name,
+      validatorConfig?: ValidatorConfig
+    ): T => {
       const mergedConfig = { ...config, ...validatorConfig };
-      
+
       // Apply transformations first if enabled
       let processedValue = value;
       if (mergedConfig.autoTransform) {
         // Create a synthetic TypeInfo for the interface
         const interfaceTypeInfo: TypeInfo = {
-          kind: "object",
+          kind: 'object',
           nullable: false,
           properties: interfaceInfo.properties,
         };
-        
+
         const transformResult = this.transformationEngine.transform(
           value,
           interfaceTypeInfo,
           path,
-          mergedConfig,
+          mergedConfig
         );
-        
+
         if (transformResult.success) {
           processedValue = transformResult.value;
         } else if (transformResult.error) {
@@ -175,19 +190,14 @@ export class ValidatorFactory {
 
       for (const property of interfaceInfo.properties) {
         const propPath = `${path}.${property.name}`;
-        const propValue = validateProperty(
-          obj,
-          property.name,
-          path,
-          property.optional,
-        );
+        const propValue = validateProperty(obj, property.name, path, property.optional);
 
         if (propValue !== undefined) {
           result[property.name] = this.validateTypeInfo(
             propValue,
             property.type,
             propPath,
-            mergedConfig,
+            mergedConfig
           );
         } else if (!property.optional) {
           throw ValidationError.missing(propPath);
@@ -200,8 +210,8 @@ export class ValidatorFactory {
 
   createTypeValidator<T>(typeInfo: TypeInfo, config?: ValidatorConfig): ValidatorFunction<T> {
     const mergedConfig = { ...this.globalConfig, ...config };
-    
-    return (value: unknown, path: string = "value", validatorConfig?: ValidatorConfig): T => {
+
+    return (value: unknown, path: string = 'value', validatorConfig?: ValidatorConfig): T => {
       const finalConfig = { ...mergedConfig, ...validatorConfig };
       return this.validateTypeInfo(value, typeInfo, path, finalConfig) as T;
     };
@@ -211,20 +221,15 @@ export class ValidatorFactory {
     value: unknown,
     typeInfo: TypeInfo,
     path: string,
-    config: ValidatorConfig,
+    config: ValidatorConfig
   ): unknown {
     // Apply transformations if enabled
     let processedValue = value;
     let skipValidation = false;
-    
+
     if (config.autoTransform || typeInfo.transformations?.autoTransform) {
-      const transformResult = this.transformationEngine.transform(
-        value,
-        typeInfo,
-        path,
-        config,
-      );
-      
+      const transformResult = this.transformationEngine.transform(value, typeInfo, path, config);
+
       if (transformResult.success) {
         processedValue = transformResult.value;
       } else if (transformResult.error) {
@@ -256,85 +261,73 @@ export class ValidatorFactory {
     }
 
     switch (typeInfo.kind) {
-      case "string":
+      case 'string':
         return validateString(processedValue, path, typeInfo.constraints);
 
-      case "number":
+      case 'number':
         return validateNumber(processedValue, path, typeInfo.constraints);
 
-      case "boolean":
+      case 'boolean':
         return validateBoolean(processedValue, path);
 
-      case "date":
+      case 'date':
         return validateDate(processedValue, path);
 
-      case "null":
+      case 'null':
         return validateNull(processedValue, path);
 
-      case "undefined":
+      case 'undefined':
         return validateUndefined(processedValue, path);
 
-      case "any":
+      case 'any':
         return validateAny(processedValue, path);
 
-      case "unknown":
+      case 'unknown':
         return validateUnknown(processedValue, path);
 
-      case "never":
+      case 'never':
         return validateNever(processedValue, path);
 
-      case "literal":
-        return validateLiteral(
-          processedValue,
-          typeInfo.value as string | number | boolean,
-          path,
-        );
+      case 'literal':
+        return validateLiteral(processedValue, typeInfo.value as string | number | boolean, path);
 
-      case "array":
+      case 'array':
         if (!typeInfo.elementType) {
           throw new Error(`Array type missing elementType at ${path}`);
         }
         return validateArrayElements(
-          processedValue, 
-          path, 
-          (item, itemPath) => this.validateTypeInfo(item, typeInfo.elementType!, itemPath, config),
-          typeInfo.constraints,
+          processedValue,
+          path,
+          (item, itemPath) =>
+            this.validateTypeInfo(item, typeInfo.elementType as TypeInfo, itemPath, config),
+          typeInfo.constraints
         );
 
-      case "tuple":
+      case 'tuple':
         if (!typeInfo.elementTypes) {
           throw new Error(`Tuple type missing elementTypes at ${path}`);
         }
         const tupleValidators = typeInfo.elementTypes.map(
-          (elementType) => (item: unknown, itemPath: string) =>
-            this.validateTypeInfo(item, elementType, itemPath, config),
+          elementType => (item: unknown, itemPath: string) =>
+            this.validateTypeInfo(item, elementType, itemPath, config)
         );
         return validateTuple(processedValue, path, tupleValidators);
 
-      case "object":
+      case 'object':
         if (!typeInfo.properties) {
           return validateObject(processedValue, path);
         }
 
-        const propertyValidators: Record<
-          string,
-          (val: unknown, propPath: string) => unknown
-        > = {};
+        const propertyValidators: Record<string, (val: unknown, propPath: string) => unknown> = {};
 
         for (const prop of typeInfo.properties) {
           if (prop.optional) {
-            propertyValidators[prop.name] = (
-              val: unknown,
-              propPath: string,
-            ) => {
+            propertyValidators[prop.name] = (val: unknown, propPath: string) => {
               if (val === undefined) return undefined;
               return this.validateTypeInfo(val, prop.type, propPath, config);
             };
           } else {
-            propertyValidators[prop.name] = (
-              val: unknown,
-              propPath: string,
-            ) => {
+            propertyValidators[prop.name] = (val: unknown, propPath: string) => {
               return this.validateTypeInfo(val, prop.type, propPath, config);
             };
           }
@@ -342,38 +335,38 @@ export class ValidatorFactory {
 
         return validateObjectWithProperties(processedValue, path, propertyValidators);
 
-      case "union":
+      case 'union':
         if (!typeInfo.types) {
           throw new Error(`Union type missing types at ${path}`);
         }
 
         // Optimize for literal unions
-        const allLiterals = typeInfo.types.every(t => t.kind === "literal");
+        const allLiterals = typeInfo.types.every(t => t.kind === 'literal');
         if (allLiterals) {
           const literalValues = typeInfo.types.map(t => t.value) as (string | number | boolean)[];
           return validateLiteralUnion(processedValue, path, literalValues);
         }
 
         const validators = typeInfo.types.map(
-          (unionType) => (val: unknown, unionPath: string) =>
-            this.validateTypeInfo(val, unionType, unionPath, config),
+          unionType => (val: unknown, unionPath: string) =>
+            this.validateTypeInfo(val, unionType, unionPath, config)
         );
 
         return validateUnion(processedValue, path, validators);
 
-      case "intersection":
+      case 'intersection':
         if (!typeInfo.types) {
           throw new Error(`Intersection type missing types at ${path}`);
         }
 
         const intersectionValidators = typeInfo.types.map(
-          (intersectionType) => (val: unknown, intersectionPath: string) =>
-            this.validateTypeInfo(val, intersectionType, intersectionPath, config),
+          intersectionType => (val: unknown, intersectionPath: string) =>
+            this.validateTypeInfo(val, intersectionType, intersectionPath, config)
         );
 
         return validateIntersection(processedValue, path, intersectionValidators);
 
-      case "reference":
+      case 'reference':
         if (!typeInfo.name) {
           throw new Error(`Reference type missing name at ${path}`);
         }
@@ -382,7 +375,7 @@ export class ValidatorFactory {
         if (!referencedInterface) {
           throw new Error(
             `Reference type '${typeInfo.name}' not found in registry at ${path}. ` +
-            `Available types: [${Array.from(this.interfaceRegistry.keys()).join(', ')}]`
+              `Available types: [${Array.from(this.interfaceRegistry.keys()).join(', ')}]`
           );
         }
 
@@ -395,7 +388,7 @@ export class ValidatorFactory {
         return refValidator(processedValue, path, config);
 
       default:
-        throw new Error(`Unknown type kind '${(typeInfo as any).kind}' at ${path}`);
+        throw new Error(`Unknown type kind '${(typeInfo as TypeInfo).kind}' at ${path}`);
     }
   }
 

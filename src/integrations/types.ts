@@ -1,4 +1,4 @@
-import { InterfaceInfo, ValidatorConfig } from '../types.js';
+import { ValidatorConfig } from '../types.js';
 import { ValidationError } from '../validator/error-handler.js';
 
 /**
@@ -14,7 +14,7 @@ export interface IntegrationConfig extends ValidatorConfig {
   /**
    * Custom error handler for integration-specific error handling
    */
-  onError?: (error: ValidationError, context?: any) => void;
+  onError?: (error: ValidationError, context?: unknown) => void;
   
   /**
    * Whether to log validation events for debugging
@@ -25,7 +25,7 @@ export interface IntegrationConfig extends ValidatorConfig {
   /**
    * Custom logger function
    */
-  logger?: (message: string, level: 'info' | 'warn' | 'error', data?: any) => void;
+  logger?: (message: string, level: 'info' | 'warn' | 'error', data?: unknown) => void;
 }
 
 /**
@@ -278,4 +278,4 @@ export interface TestAssertionResult<T> {
     validationTime: number;
     memoryUsage?: number;
   };
-} 
+}

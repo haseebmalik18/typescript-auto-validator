@@ -28,22 +28,22 @@ export function wrapValidation<T>(
   config: IntegrationConfig = {}
 ): ValidationResult<T> {
   const startTime = performance.now();
-  
+
   try {
     if (config.enableLogging) {
       log(config, 'info', `Starting validation at ${context.path}`, { context });
     }
-    
+
     const data = validationFn();
     const endTime = performance.now();
     const validationTime = endTime - startTime;
-    
+
     if (config.enableLogging) {
-      log(config, 'info', `Validation successful at ${context.path}`, { 
-        validationTime: `${validationTime.toFixed(2)}ms`
+      log(config, 'info', `Validation successful at ${context.path}`, {
+        validationTime: `${validationTime.toFixed(2)}ms`,
       });
     }
-    
+
     return {
       success: true,
       data,
@@ -56,31 +56,30 @@ export function wrapValidation<T>(
   } catch (error) {
     const endTime = performance.now();
     const validationTime = endTime - startTime;
-    
-    const validationError = error instanceof ValidationError 
-      ? error 
-      : new ValidationError(String(error), context.path);
-    
+
+    const validationError =
+      error instanceof ValidationError ? error : new ValidationError(String(error), context.path);
+
     if (config.enableLogging) {
-      log(config, 'error', `Validation failed at ${context.path}`, { 
+      log(config, 'error', `Validation failed at ${context.path}`, {
         error: validationError.message,
-        validationTime: `${validationTime.toFixed(2)}ms`
+        validationTime: `${validationTime.toFixed(2)}ms`,
       });
     }
-    
+
     // Call custom error handler if provided
     if (config.onError) {
       try {
         config.onError(validationError, context);
       } catch (handlerError) {
         if (config.enableLogging) {
-          log(config, 'error', 'Error in custom error handler', { 
-            handlerError: String(handlerError) 
+          log(config, 'error', 'Error in custom error handler', {
+            handlerError: String(handlerError),
           });
         }
       }
     }
-    
+
     return {
       success: false,
       error: validationError,
@@ -102,22 +101,22 @@ export async function wrapAsyncValidation<T>(
   config: IntegrationConfig = {}
 ): Promise<ValidationResult<T>> {
   const startTime = performance.now();
-  
+
   try {
     if (config.enableLogging) {
       log(config, 'info', `Starting async validation at ${context.path}`, { context });
     }
-    
+
     const data = await validationFn();
     const endTime = performance.now();
     const validationTime = endTime - startTime;
-    
+
     if (config.enableLogging) {
-      log(config, 'info', `Async validation successful at ${context.path}`, { 
-        validationTime: `${validationTime.toFixed(2)}ms`
+      log(config, 'info', `Async validation successful at ${context.path}`, {
+        validationTime: `${validationTime.toFixed(2)}ms`,
       });
     }
-    
+
     return {
       success: true,
       data,
@@ -130,31 +129,30 @@ export async function wrapAsyncValidation<T>(
   } catch (error) {
     const endTime = performance.now();
     const validationTime = endTime - startTime;
-    
-    const validationError = error instanceof ValidationError 
-      ? error 
-      : new ValidationError(String(error), context.path);
-    
+
+    const validationError =
+      error instanceof ValidationError ? error : new ValidationError(String(error), context.path);
+
     if (config.enableLogging) {
-      log(config, 'error', `Async validation failed at ${context.path}`, { 
+      log(config, 'error', `Async validation failed at ${context.path}`, {
         error: validationError.message,
-        validationTime: `${validationTime.toFixed(2)}ms`
+        validationTime: `${validationTime.toFixed(2)}ms`,
       });
     }
-    
+
     // Call custom error handler if provided
     if (config.onError) {
       try {
         config.onError(validationError, context);
       } catch (handlerError) {
         if (config.enableLogging) {
-          log(config, 'error', 'Error in custom error handler', { 
-            handlerError: String(handlerError) 
+          log(config, 'error', 'Error in custom error handler', {
+            handlerError: String(handlerError),
           });
         }
       }
     }
-    
+
     return {
       success: false,
       error: validationError,
@@ -174,17 +172,17 @@ export function log(
   config: IntegrationConfig,
   level: 'info' | 'warn' | 'error',
   message: string,
-  data?: any
+  data?: unknown
 ): void {
   if (!config.enableLogging) return;
-  
+
   if (config.logger) {
     config.logger(message, level, data);
   } else {
     // Default console logging
     const timestamp = new Date().toISOString();
     const prefix = `[${timestamp}] [ts-auto-validator] [${level.toUpperCase()}]`;
-    
+
     switch (level) {
       case 'info':
         console.info(`${prefix} ${message}`, data ? data : '');
@@ -219,7 +217,7 @@ export function formatValidationErrorForHttp(
     error: 'Validation Error',
     message: error.message,
   };
-  
+
   if (includeDetails) {
     return {
       ...response,
@@ -231,7 +229,7 @@ export function formatValidationErrorForHttp(
       },
     };
   }
-  
+
   return response;
 }
 
@@ -245,7 +243,7 @@ export function shouldIncludeErrorDetails(
   if (explicitSetting !== undefined) {
     return explicitSetting;
   }
-  
+
   // Default: include details in development, exclude in production
   return nodeEnv === 'development';
 }
@@ -258,7 +256,7 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
   wait: number
 ): (...args: Parameters<T>) => void {
   let timeout: NodeJS.Timeout;
-  
+
   return (...args: Parameters<T>): void => {
     clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
@@ -282,7 +280,7 @@ export function isFrameworkAvailable(frameworkName: string): boolean {
  */
 export function getEnvironment(): 'development' | 'production' | 'test' {
   const env = process.env.NODE_ENV;
-  
+
   if (env === 'production') return 'production';
   if (env === 'test') return 'test';
   return 'development';
@@ -308,9 +306,12 @@ export function sanitizeErrorForSerialization(error: ValidationError): Record<st
     // Don't include the raw value as it might contain sensitive data
     // value: error.value,
   };
-} 
+}
 
-export function createMockRequest(data: unknown = {}): any {
+/**
+ * Creates a mock request object for testing purposes
+ */
+export function createMockRequest(data: unknown = {}): MockRequest {
   return {
     body: data,
     query: {},
@@ -323,33 +324,63 @@ export function createMockRequest(data: unknown = {}): any {
   };
 }
 
-export function createMockResponse(): any {
-  const res: any = {
+/**
+ * Creates a mock response object for testing purposes
+ */
+export function createMockResponse(): MockResponse {
+  const res: MockResponse = {
     statusCode: 200,
     headersSent: false,
     locals: {},
     headers: {},
     _body: undefined,
-    status: function(code: number) {
+    status: function (code: number) {
       this.statusCode = code;
       return this;
     },
-    json: function(data: any) {
+    json: function (data: unknown) {
       this._body = data;
       return this;
     },
-    send: function(data: any) {
+    send: function (data: unknown) {
       this._body = data;
       return this;
     },
-    setHeader: function(name: string, value: string) {
+    setHeader: function (name: string, value: string) {
       this.headers = this.headers || {};
       this.headers[name] = value;
       return this;
     },
-    end: function() {
+    end: function () {
       return this;
     },
   };
   return res;
-} 
+}
+
+/**
+ * Type definitions for mock objects
+ */
+export interface MockRequest {
+  body: unknown;
+  query: Record<string, unknown>;
+  params: Record<string, unknown>;
+  headers: Record<string, unknown>;
+  method: string;
+  url: string;
+  get: (header: string) => string | undefined;
+  header: (header: string) => string | undefined;
+}
+
+export interface MockResponse {
+  statusCode: number;
+  headersSent: boolean;
+  locals: Record<string, unknown>;
+  headers: Record<string, unknown>;
+  _body: unknown;
+  status: (code: number) => MockResponse;
+  json: (data: unknown) => MockResponse;
+  send: (data: unknown) => MockResponse;
+  setHeader: (name: string, value: string) => MockResponse;
+  end: () => MockResponse;
+}

@@ -1,5 +1,5 @@
-import { InterfaceInfo, ValidatorConfig, TypeInfo } from "../types.js";
-import { ValidatorFactory } from "./validator-factory.js";
+import { InterfaceInfo, ValidatorConfig, TypeInfo, TransformerDefinition } from '../types.js';
+import { ValidatorFactory } from './validator-factory.js';
 
 // Global validator configuration
 let globalConfig: ValidatorConfig = {};
@@ -47,12 +47,9 @@ export function createTransformingValidatorForType<T>(
 /**
  * Register a transformer globally
  */
-export function registerTransformer(
-  name: string,
-  transformer: any
-): void {
+export function registerTransformer(name: string, transformer: TransformerDefinition): void {
   if (!globalConfig.transformers) {
     globalConfig.transformers = {};
   }
   globalConfig.transformers[name] = transformer;
-} 
+}
